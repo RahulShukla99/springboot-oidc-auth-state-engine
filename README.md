@@ -109,9 +109,9 @@ Auth0 does not include group/role claims in ID tokens by default. If no group cl
 
 No Auth0 tenant URL, client ID, client secret, or API key should be committed to git.
 
-Use either environment variables or a local Spring profile file.
+The default profile starts without OAuth client registration so the project can run safely from a clean checkout. Use either environment variables with the `oauth` profile or a local Spring profile file for real Auth0 login.
 
-### Option 1: environment variables
+### Option 1: environment variables with the `oauth` profile
 
 Bash:
 
@@ -131,6 +131,12 @@ $env:AUTH0_CLIENT_SECRET="your-client-secret"
 $env:AUTH0_ISSUER_URI="https://your-auth0-domain.us.auth0.com/"
 $env:AUTH_ALLOWED_GROUPS="APP_USER,APP_ADMIN"
 $env:AUTH_AUDIT_MAX_RECORDS="100"
+```
+
+Run with the OAuth profile:
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=oauth
 ```
 
 ### Option 2: local Spring profile file
@@ -173,9 +179,13 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local
 
 ## Run locally
 
+Without OAuth configured, the app starts in documentation/demo mode:
+
 ```bash
 mvn spring-boot:run
 ```
+
+With Auth0 configured, use either the `oauth` or `local` profile shown above.
 
 Open:
 
