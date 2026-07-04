@@ -1,0 +1,19 @@
+# Copy this file to src/main/resources/application-local.yml for local development.
+# Never commit application-local.yml.
+
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          auth0:
+            client-id: your-client-id
+            client-secret: your-client-secret
+        provider:
+          auth0:
+            issuer-uri: https://your-auth0-domain.us.auth0.com/
+
+auth:
+  allowed-groups: APP_USER,APP_ADMIN
+  audit:
+    max-records: 100

@@ -105,14 +105,20 @@ Spring Security is configured for OAuth2/OIDC login using the `auth0` registrati
 
 Auth0 does not include group/role claims in ID tokens by default. If no group claims are present, this demo allows a user when the email is present and verified. If groups are present, at least one must match `auth.allowed-groups`.
 
-## Required environment variables
+## Local secrets configuration
+
+No Auth0 tenant URL, client ID, client secret, or API key should be committed to git.
+
+Use either environment variables or a local Spring profile file.
+
+### Option 1: environment variables
 
 Bash:
 
 ```bash
-export AUTH0_CLIENT_ID=JHrxaarR6h1HHvJSlhjljWJvF9rmHOHj
-export AUTH0_CLIENT_SECRET=replace-with-rotated-client-secret
-export AUTH0_ISSUER_URI=https://dev-kmrxhvr858b27bxg.us.auth0.com/
+export AUTH0_CLIENT_ID=your-client-id
+export AUTH0_CLIENT_SECRET=your-client-secret
+export AUTH0_ISSUER_URI=https://your-auth0-domain.us.auth0.com/
 export AUTH_ALLOWED_GROUPS=APP_USER,APP_ADMIN
 export AUTH_AUDIT_MAX_RECORDS=100
 ```
@@ -120,12 +126,50 @@ export AUTH_AUDIT_MAX_RECORDS=100
 PowerShell:
 
 ```powershell
-$env:AUTH0_CLIENT_ID="JHrxaarR6h1HHvJSlhjljWJvF9rmHOHj"
-$env:AUTH0_CLIENT_SECRET="replace-with-rotated-client-secret"
-$env:AUTH0_ISSUER_URI="https://dev-kmrxhvr858b27bxg.us.auth0.com/"
+$env:AUTH0_CLIENT_ID="your-client-id"
+$env:AUTH0_CLIENT_SECRET="your-client-secret"
+$env:AUTH0_ISSUER_URI="https://your-auth0-domain.us.auth0.com/"
 $env:AUTH_ALLOWED_GROUPS="APP_USER,APP_ADMIN"
 $env:AUTH_AUDIT_MAX_RECORDS="100"
 ```
+
+### Option 2: local Spring profile file
+
+Copy the example file:
+
+```bash
+cp src/main/resources/application-example.yml src/main/resources/application-local.yml
+```
+
+PowerShell:
+
+```powershell
+Copy-Item src/main/resources/application-example.yml src/main/resources/application-local.yml
+```
+
+Fill in local values using placeholders as a guide:
+
+```yaml
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          auth0:
+            client-id: your-client-id
+            client-secret: your-client-secret
+        provider:
+          auth0:
+            issuer-uri: https://your-auth0-domain.us.auth0.com/
+```
+
+Run with the local profile:
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+`src/main/resources/application-local.yml`, root-level `application-local.yml`, and `.env` are ignored by git.
 
 ## Run locally
 

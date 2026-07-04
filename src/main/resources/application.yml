@@ -7,7 +7,7 @@ spring:
       client:
         registration:
           auth0:
-            client-id: ${AUTH0_CLIENT_ID:JHrxaarR6h1HHvJSlhjljWJvF9rmHOHj}
+            client-id: ${AUTH0_CLIENT_ID}
             client-secret: ${AUTH0_CLIENT_SECRET}
             scope:
               - openid
@@ -17,7 +17,7 @@ spring:
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
         provider:
           auth0:
-            issuer-uri: ${AUTH0_ISSUER_URI:https://dev-kmrxhvr858b27bxg.us.auth0.com/}
+            issuer-uri: ${AUTH0_ISSUER_URI}
 
 auth:
   flow:

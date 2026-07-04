@@ -4,5 +4,7 @@ frontend/dist/
 .idea/
 *.iml
 .env
+src/main/resources/application-local.yml
+application-local.yml
 *.log
 .DS_Store
