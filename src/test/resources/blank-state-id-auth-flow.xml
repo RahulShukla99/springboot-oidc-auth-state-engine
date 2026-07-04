@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<authFlow name="blank-state-id-flow">
+    <states>
+        <state id="" initial="true" final="false">
+            <transitions>
+                <transition event="LOGIN_REQUESTED" target="AUTH_SUCCESS"/>
+            </transitions>
+        </state>
+        <state id="AUTH_SUCCESS" initial="false" final="true"/>
+    </states>
+</authFlow>

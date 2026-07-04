@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<authFlow name="missing-target-test-flow">
+    <states>
+        <state id="START" initial="true" final="false">
+            <transitions>
+                <transition event="LOGIN_REQUESTED" target="MISSING"/>
+            </transitions>
+        </state>
+        <state id="AUTH_FAILED" initial="false" final="true"/>
+    </states>
+</authFlow>

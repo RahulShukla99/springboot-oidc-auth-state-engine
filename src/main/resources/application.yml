@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          auth0:
+            client-id: ${AUTH0_CLIENT_ID:JHrxaarR6h1HHvJSlhjljWJvF9rmHOHj}
+            client-secret: ${AUTH0_CLIENT_SECRET}
+            scope:
+              - openid
+              - profile
+              - email
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          auth0:
+            issuer-uri: ${AUTH0_ISSUER_URI:https://dev-kmrxhvr858b27bxg.us.auth0.com/}
+
+auth:
+  flow:
+    path: classpath:auth-flow.xml
+  allowed-groups: ${AUTH_ALLOWED_GROUPS:APP_USER,APP_ADMIN}
+  audit:
+    max-records: ${AUTH_AUDIT_MAX_RECORDS:100}

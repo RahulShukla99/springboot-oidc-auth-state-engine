@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<authFlow name="valid-test-flow">
+    <states>
+        <state id="START" initial="true" final="false">
+            <transitions>
+                <transition event="LOGIN_REQUESTED" target="AUTH_SUCCESS"/>
+            </transitions>
+        </state>
+        <state id="AUTH_SUCCESS" initial="false" final="true"/>
+    </states>
+</authFlow>

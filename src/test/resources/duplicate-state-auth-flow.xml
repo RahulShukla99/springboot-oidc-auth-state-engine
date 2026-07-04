@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<authFlow name="duplicate-test-flow">
+    <states>
+        <state id="START" initial="true" final="false"/>
+        <state id="START" initial="false" final="true"/>
+    </states>
+</authFlow>
