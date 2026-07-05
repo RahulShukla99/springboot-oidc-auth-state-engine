@@ -35,7 +35,7 @@ The project separates identity authentication from application-owned post-login 
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TB
     Browser[Browser / React UI]
     SpringSecurity[Spring Security OAuth2 Client]
     Auth0[Auth0 / OIDC Provider]

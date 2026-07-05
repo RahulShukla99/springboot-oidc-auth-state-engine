@@ -1,5 +1,5 @@
 digraph AuthStateMachine {
-  rankdir=LR;
+  rankdir=TB;
   graph [
     label="Spring Boot OIDC Authentication State Engine",
     labelloc=t,
