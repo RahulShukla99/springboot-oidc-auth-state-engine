@@ -7,6 +7,12 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
+/**
+ * Per-user session cache for completed login orchestration.
+ * <p>
+ * The service prevents repeated post-login execution for the same username within a JVM
+ * by storing the completed session context atomically.
+ */
 @Service
 public class AuthSessionService {
     private final ConcurrentHashMap<String, AuthSessionContext> sessions = new ConcurrentHashMap<>();

@@ -269,6 +269,27 @@ docker compose up --build
 
 Set real values through environment variables or an uncommitted `.env` file before using OAuth login.
 
+## AWS deployment model
+
+Suggested AWS layout:
+
+- Frontend: S3 + CloudFront
+- Backend: ECS Fargate behind an ALB
+- Images: Amazon ECR
+- Config/secrets: SSM Parameter Store or Secrets Manager
+- Logging: CloudWatch Logs
+- DNS/TLS: Route 53 + ACM
+
+Runtime flow:
+
+1. Browser loads the React UI from CloudFront.
+2. UI sends the user to the Spring Boot login endpoint.
+3. Spring Security redirects to Auth0 for OIDC login.
+4. Auth0 returns to the backend callback URL.
+5. The backend validates the user, executes the auth flow, and returns JSON responses.
+
+Use environment variables such as `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_ISSUER_URI`, and `SPRING_PROFILES_ACTIVE=oauth` from ECS task definitions.
+
 ## API endpoints
 
 | Method | Endpoint | Access | Description |
@@ -278,23 +299,6 @@ Set real values through environment variables or an uncommitted `.env` file befo
 | GET | `/auth/success` | Authenticated | Executes post-login orchestration |
 | GET | `/auth/session` | Authenticated | Current authenticated user details |
 | GET | `/auth/audit` | Authenticated | Recent transition audit records |
-
-## Screenshots
-
-Add screenshots before publishing:
-
-```text
-docs/screenshots/home.png
-docs/screenshots/flow.png
-docs/screenshots/audit.png
-```
-
-Suggested screenshots:
-
-- React landing page
-- `/auth/flow` JSON output
-- successful `/auth/success` response
-- `/auth/audit` transition history
 
 ## Testing
 
@@ -314,44 +318,3 @@ GitHub Actions workflow:
 
 It builds the Java application, runs tests, packages the jar, and builds the React frontend.
 
-## Current limitations
-
-- Audit storage is in-memory and not compliance-grade.
-- Idempotency is per JVM instance; production needs a database unique constraint or distributed store.
-- Authorization rules are intentionally simple and claim-based.
-- The React UI is intentionally lightweight and focused on demonstrating the auth journey.
-
-## Future enhancements
-
-High-impact additions that keep the design understandable:
-
-- persistent audit table with append-only writes
-- database-backed idempotency keys with unique constraints
-- step-up authentication flow for sensitive actions
-- policy-based authorization abstraction for group, role, and risk claims
-- OpenTelemetry traces with correlation IDs
-- actuator health endpoint for Auth0 issuer metadata reachability
-- signed audit export or event publishing through an outbox pattern
-- integration tests using WireMock for OIDC discovery metadata
-
-## Engineering review notes
-
-Strengths:
-
-- clear separation between identity authentication and application-owned orchestration
-- deterministic XML state machine with validation
-- profile-based secret management suitable for public repositories
-- concurrency-aware idempotency for repeated login callbacks
-- CI, Docker, React UI, and documented extension points
-
-Improvement areas for a production system:
-
-- replace in-memory audit/session stores with durable storage
-- use database transactions for session result and audit writes
-- add distributed idempotency for multi-instance deployments
-- add richer authorization policy modeling
-- add integration tests against mocked OIDC discovery and JWKS endpoints
-
-## Resume bullet
-
-Designed and developed a Spring Boot authentication orchestration service using OAuth2/OIDC with Auth0/Okta-compatible external identity providers. Implemented an XML-driven state engine to manage login, callback handling, token validation, profile loading, role/group-based authorization, failure handling, idempotency, and audit logging.

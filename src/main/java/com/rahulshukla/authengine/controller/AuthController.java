@@ -5,22 +5,30 @@ import com.rahulshukla.authengine.audit.InMemoryAuditService;
 import com.rahulshukla.authengine.engine.AuthStateEngine;
 import com.rahulshukla.authengine.model.AuthFlow;
 import com.rahulshukla.authengine.model.AuthSessionContext;
+import com.rahulshukla.authengine.model.AuthState;
 import com.rahulshukla.authengine.service.AuthSessionService;
 import com.rahulshukla.authengine.service.AuthorizationDecision;
 import com.rahulshukla.authengine.service.AuthorizationService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.LinkedHashMap;
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
+/**
+ * HTTP entry point for the authentication workflow.
+ * <p>
+ * The controller exposes the public flow inspection endpoint and the authenticated
+ * post-login endpoints that assemble the session, execute the state engine, and return
+ * JSON for the UI.
+ */
 @RestController
 @RequestMapping(produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
@@ -32,17 +40,14 @@ public class AuthController {
     private final AuthFlow authFlow;
 
     @GetMapping("/")
-    public Map<String, String> home() {
-        return Map.of(
-                "message", "Spring Boot OIDC Authentication State Engine",
-                "loginUrl", "/oauth2/authorization/auth0"
-        );
+    public HomeResponse home() {
+        return new HomeResponse("Spring Boot OIDC Authentication State Engine", "/oauth2/authorization/auth0");
     }
 
     @GetMapping("/auth/success")
     public AuthSessionContext success(@AuthenticationPrincipal OidcUser user) {
         AuthorizationDecision decision = authorizationService.authorize(user);
-        String username = user == null ? null : user.getEmail();
+        String username = username(user);
         if (username == null || username.isBlank()) {
             return executeNewLoginFlow(user, decision);
         }
@@ -50,30 +55,30 @@ public class AuthController {
     }
 
     @GetMapping("/auth/session")
-    public Map<String, Object> session(Authentication authentication, @AuthenticationPrincipal OidcUser user) {
-        String username = user == null ? null : user.getEmail();
+    public SessionResponse session(Authentication authentication, @AuthenticationPrincipal OidcUser user) {
+        String username = username(user);
         AuthSessionContext context = username == null ? null : sessionService.findByUsername(username).orElse(null);
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("authenticated", authentication != null && authentication.isAuthenticated());
-        response.put("username", username);
-        response.put("fullName", user == null ? null : user.getFullName());
-        response.put("emailVerified", user != null && !Boolean.FALSE.equals(user.getEmailVerified()));
-        response.put("authorities", authentication == null ? List.of() : authentication.getAuthorities());
-        response.put("currentState", context == null ? null : context.getCurrentState());
-        response.put("finalState", context == null ? null : context.getFinalState());
-        return response;
+        return new SessionResponse(
+                authentication != null && authentication.isAuthenticated(),
+                username,
+                user == null ? null : user.getFullName(),
+                user != null && !Boolean.FALSE.equals(user.getEmailVerified()),
+                authentication == null ? List.of() : authentication.getAuthorities(),
+                context == null ? null : context.getCurrentState(),
+                context == null ? null : context.getFinalState()
+        );
     }
 
     @GetMapping("/auth/flow")
-    public Map<String, Object> flow() {
-        return Map.of(
-                "flowName", authFlow.name(),
-                "initialState", authFlow.initialState().id(),
-                "finalStates", authFlow.finalStates().stream().map(state -> state.id()).toList(),
-                "states", authFlow.states(),
-                "transitions", authFlow.states().stream()
+    public FlowResponse flow() {
+        return new FlowResponse(
+                authFlow.name(),
+                authFlow.initialState().id(),
+                authFlow.finalStates().stream().map(AuthState::id).toList(),
+                authFlow.states(),
+                authFlow.states().stream()
                         .flatMap(state -> state.transitions().stream()
-                                .map(transition -> Map.of("fromState", state.id(), "event", transition.event(), "toState", transition.target())))
+                                .map(transition -> new TransitionView(state.id(), transition.event(), transition.target())))
                         .toList()
         );
     }
@@ -100,5 +105,31 @@ public class AuthController {
             context.setGroupsOrRoles(authorizationService.extractGroups(user));
         }
         return context;
+    }
+
+    private String username(OidcUser user) {
+        return Optional.ofNullable(user).map(OidcUser::getEmail).orElse(null);
+    }
+
+    record HomeResponse(String message, String loginUrl) {
+    }
+
+    record SessionResponse(boolean authenticated,
+                           String username,
+                           String fullName,
+                           boolean emailVerified,
+                           Collection<?> authorities,
+                           String currentState,
+                           String finalState) {
+    }
+
+    record FlowResponse(String flowName,
+                        String initialState,
+                        List<String> finalStates,
+                        List<AuthState> states,
+                        List<TransitionView> transitions) {
+    }
+
+    record TransitionView(String fromState, String event, String toState) {
     }
 }

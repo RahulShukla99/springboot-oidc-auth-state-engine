@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -28,6 +29,30 @@ class AuthControllerJsonTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.loginUrl").value("/oauth2/authorization/auth0"));
+    }
+
+    @Test
+    void shouldExposeConfiguredFlowAsJson() {
+        AuthController controller = controller();
+
+        var flow = controller.flow();
+
+        assertThat(flow.flowName()).isEqualTo("test-flow");
+        assertThat(flow.initialState()).isEqualTo("START");
+        assertThat(flow.finalStates()).isEmpty();
+        assertThat(flow.transitions()).isEmpty();
+    }
+
+    @Test
+    void shouldReturnUnauthenticatedSessionSnapshotWhenNoPrincipalIsPresent() {
+        AuthController controller = controller();
+
+        var session = controller.session(null, null);
+
+        assertThat(session.authenticated()).isFalse();
+        assertThat(session.username()).isNull();
+        assertThat(session.currentState()).isNull();
+        assertThat(session.finalState()).isNull();
     }
 
     private AuthController controller() {

@@ -16,6 +16,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Loads and validates the XML-defined authentication flow.
+ * <p>
+ * This keeps the workflow configuration externalized while enforcing the core invariants:
+ * one initial state, unique state IDs, valid transition targets, and no outgoing edges
+ * from final states.
+ */
 public class XmlAuthFlowLoader {
     private final String flowPath;
     private final XmlMapper xmlMapper = new XmlMapper();

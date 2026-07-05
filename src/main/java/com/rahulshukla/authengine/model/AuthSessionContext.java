@@ -8,6 +8,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Mutable state carried through a login orchestration run.
+ * <p>
+ * It stores user attributes, current and final workflow states, failure reason, and the
+ * recorded transition history for audit and response payloads.
+ */
 @Getter
 @Setter
 public class AuthSessionContext {

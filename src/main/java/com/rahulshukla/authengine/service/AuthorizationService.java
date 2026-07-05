@@ -8,6 +8,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Evaluates whether an OIDC user may enter the application workflow.
+ * <p>
+ * The decision is based on email presence, email verification, and allowed group/role
+ * claims with a documented fallback when claims are absent.
+ */
 @Service
 public class AuthorizationService {
     private final List<String> allowedGroups;

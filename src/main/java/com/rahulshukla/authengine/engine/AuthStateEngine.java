@@ -14,6 +14,12 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Deterministic authentication workflow executor.
+ * <p>
+ * The engine advances a session through the configured flow, records each transition,
+ * and writes audit events for success and failure outcomes.
+ */
 public class AuthStateEngine {
     private final AuthFlow flow;
     private final InMemoryAuditService auditService;

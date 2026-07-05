@@ -4,6 +4,12 @@ import com.rahulshukla.authengine.exception.AuthFlowValidationException;
 
 import java.util.Map;
 
+/**
+ * Registry of named authentication flows.
+ * <p>
+ * The application uses this to resolve the login journey by name and fail fast when a
+ * requested flow is not configured.
+ */
 public class AuthFlowRegistry {
     private final Map<String, AuthStateEngine> enginesByName;
 

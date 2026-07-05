@@ -4,14 +4,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 
 @Service
 @Slf4j
 public class InMemoryAuditService {
     private final int maxRecords;
-    private final List<AuthAuditRecord> records = new ArrayList<>();
+    private final Deque<AuthAuditRecord> records = new ArrayDeque<>();
 
     public InMemoryAuditService() {
         this(100);
@@ -25,7 +26,7 @@ public class InMemoryAuditService {
     }
 
     public synchronized void record(AuthAuditRecord record) {
-        records.add(record);
+        records.addLast(record);
         while (records.size() > maxRecords) {
             records.removeFirst();
         }
