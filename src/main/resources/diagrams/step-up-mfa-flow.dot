@@ -1,0 +1,51 @@
+digraph StepUpMfaFlow {
+  graph [
+    rankdir=TB,
+    label="Spring Boot OIDC Authentication State Engine",
+    labelloc=t,
+    fontsize=20,
+    fontname="Arial",
+    bgcolor="white",
+    ranksep=0.8,
+    nodesep=0.7,
+    pad=0.3
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="Arial",
+    fontsize=12,
+    color="#344054",
+    fillcolor="#F9FAFB",
+    penwidth=2,
+    margin="0.22,0.12"
+  ];
+
+  edge [
+    fontname="Arial",
+    fontsize=10,
+    color="#475467",
+    arrowsize=0.8
+  ];
+
+  START [shape=circle, width=1.05, fixedsize=true, fillcolor="#DBEAFE", color="#2563EB"];
+  REDIRECT_TO_IDP [label="REDIRECT_TO_IDP\nSpring Security redirects to Auth0", fillcolor="#EFF6FF"];
+  VALIDATE_TOKEN [label="VALIDATE_TOKEN\nOIDC token and email verification", fillcolor="#FEF3C7"];
+  LOAD_USER_PROFILE [label="LOAD_USER_PROFILE\nExtract email, name, groups/roles", fillcolor="#F5F3FF"];
+  REQUIRE_MFA [label="REQUIRE_MFA\nPrompt and verify one-time code", fillcolor="#E0F2FE"];
+  STEP_UP_SUCCESS [shape=doublecircle, label="STEP_UP_SUCCESS", fillcolor="#DCFCE7", color="#16A34A"];
+  AUTH_FAILED_TOKEN [shape=doublecircle, label="AUTH_FAILED", fillcolor="#FEE2E2", color="#DC2626"];
+  AUTH_FAILED_MFA [shape=doublecircle, label="AUTH_FAILED", fillcolor="#FEE2E2", color="#DC2626"];
+
+  { rank=same; VALIDATE_TOKEN; AUTH_FAILED_TOKEN; }
+  { rank=same; REQUIRE_MFA; AUTH_FAILED_MFA; }
+
+  START -> REDIRECT_TO_IDP [label="LOGIN_REQUESTED"];
+  REDIRECT_TO_IDP -> VALIDATE_TOKEN [label="OIDC_CALLBACK_RECEIVED"];
+  VALIDATE_TOKEN -> LOAD_USER_PROFILE [label="TOKEN_VALID"];
+  VALIDATE_TOKEN -> AUTH_FAILED_TOKEN [label="TOKEN_INVALID", color="#DC2626", fontcolor="#DC2626"];
+  LOAD_USER_PROFILE -> REQUIRE_MFA [label="PROFILE_LOADED"];
+  REQUIRE_MFA -> STEP_UP_SUCCESS [label="MFA_PASSED", color="#16A34A", fontcolor="#16A34A"];
+  REQUIRE_MFA -> AUTH_FAILED_MFA [label="MFA_FAILED", color="#DC2626", fontcolor="#DC2626"];
+}

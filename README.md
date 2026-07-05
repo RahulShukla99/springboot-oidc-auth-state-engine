@@ -9,15 +9,21 @@ Built a Spring Boot 3.5 / Java 21 authentication orchestration service for Auth0
 - XML-driven login and step-up/MFA flows
 - Auth session tracking with per-user idempotency
 - Authorization based on OIDC claims and groups/roles
+- Structured logs on critical workflow paths
 - Bounded audit trail with correlation IDs
 - JSON endpoints for flow, session, and audit inspection
+- Browser view for the state engine diagram
 - Docker, React UI, and AWS-ready deployment model
 
 ### Core flows
 - `login`
 - `step-up`
 
-### Endpoints
+### Browser flow views
+- `GET /auth/flow/view`
+- `GET /auth/flow/step-up/view`
+
+### API endpoints
 - `GET /`
 - `GET /auth/flow/{flowName}`
 - `GET /auth/success/{flowName}`

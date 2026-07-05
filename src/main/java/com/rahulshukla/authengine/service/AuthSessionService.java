@@ -1,6 +1,7 @@
 package com.rahulshukla.authengine.service;
 
 import com.rahulshukla.authengine.model.AuthSessionContext;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -14,6 +15,7 @@ import java.util.function.Supplier;
  * by storing the completed session context atomically.
  */
 @Service
+@Slf4j
 public class AuthSessionService {
     private final ConcurrentHashMap<String, AuthSessionContext> sessions = new ConcurrentHashMap<>();
 
@@ -21,15 +23,23 @@ public class AuthSessionService {
         return findOrCreateCompletedSession("login", username, sessionSupplier);
     }
 
+    /**
+     * Returns the cached session for a flow and user or creates it once atomically.
+     */
     public AuthSessionContext findOrCreateCompletedSession(String flowName, String username, Supplier<AuthSessionContext> sessionSupplier) {
         validateUsername(username);
-        return sessions.computeIfAbsent(sessionKey(flowName, username), ignored -> sessionSupplier.get());
+        String key = sessionKey(flowName, username);
+        log.debug("session cache access flow={} username={}", flowName, username);
+        return sessions.computeIfAbsent(key, ignored -> sessionSupplier.get());
     }
 
     public Optional<AuthSessionContext> findByUsername(String username) {
         return findByFlowAndUsername("login", username);
     }
 
+    /**
+     * Looks up a cached session for the given flow and user.
+     */
     public Optional<AuthSessionContext> findByFlowAndUsername(String flowName, String username) {
         return Optional.ofNullable(sessions.get(sessionKey(flowName, username)));
     }

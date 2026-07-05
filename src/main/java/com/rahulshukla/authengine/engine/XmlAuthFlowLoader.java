@@ -8,6 +8,7 @@ import com.rahulshukla.authengine.exception.AuthFlowValidationException;
 import com.rahulshukla.authengine.model.AuthFlow;
 import com.rahulshukla.authengine.model.AuthState;
 import com.rahulshukla.authengine.model.AuthTransition;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 
@@ -23,6 +24,7 @@ import java.util.Set;
  * one initial state, unique state IDs, valid transition targets, and no outgoing edges
  * from final states.
  */
+@Slf4j
 public class XmlAuthFlowLoader {
     private final String flowPath;
     private final XmlMapper xmlMapper = new XmlMapper();
@@ -31,12 +33,17 @@ public class XmlAuthFlowLoader {
         this.flowPath = flowPath;
     }
 
+    /**
+     * Loads and validates the configured XML workflow.
+     */
     public AuthFlow load() {
         try {
+            log.info("loading auth flow definition from {}", flowPath);
             Resource resource = new DefaultResourceLoader().getResource(flowPath);
             XmlAuthFlow xmlFlow = xmlMapper.readValue(resource.getInputStream(), XmlAuthFlow.class);
             AuthFlow flow = xmlFlow.toAuthFlow();
             validate(flow);
+            log.info("loaded auth flow name={} states={} path={}", flow.name(), flow.states().size(), flowPath);
             return flow;
         } catch (AuthFlowValidationException ex) {
             throw ex;
@@ -45,6 +52,9 @@ public class XmlAuthFlowLoader {
         }
     }
 
+    /**
+     * Validates the business invariants for the XML workflow.
+     */
     private void validate(AuthFlow flow) {
         if (flow == null || flow.states().isEmpty()) {
             throw new AuthFlowValidationException("Auth flow must contain at least one state");
@@ -83,6 +93,7 @@ public class XmlAuthFlowLoader {
         if (initialCount != 1) {
             throw new AuthFlowValidationException("Auth flow must contain exactly one initial state");
         }
+        log.debug("validated auth flow name={} initialCount={} stateCount={}", flow.name(), initialCount, flow.states().size());
         for (AuthState state : flow.states()) {
             state.transitions().forEach(transition -> {
                 if (!ids.contains(transition.target())) {

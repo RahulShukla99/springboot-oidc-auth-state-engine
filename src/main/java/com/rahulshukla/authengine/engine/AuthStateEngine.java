@@ -8,6 +8,7 @@ import com.rahulshukla.authengine.model.AuthSessionContext;
 import com.rahulshukla.authengine.model.AuthState;
 import com.rahulshukla.authengine.model.AuthTransition;
 import com.rahulshukla.authengine.model.TransitionHistoryEntry;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.Map;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
  * The engine advances a session through the configured flow, records each transition,
  * and writes audit events for success and failure outcomes.
  */
+@Slf4j
 public class AuthStateEngine {
     private final AuthFlow flow;
     private final InMemoryAuditService auditService;
@@ -31,14 +33,23 @@ public class AuthStateEngine {
         this.statesById = flow.states().stream().collect(Collectors.toUnmodifiableMap(AuthState::id, Function.identity()));
     }
 
+    /**
+     * Returns the configured workflow definition.
+     */
     public AuthFlow flow() {
         return flow;
     }
 
+    /**
+     * Returns the initial state for the workflow.
+     */
     public AuthState getInitialState() {
         return flow.initialState();
     }
 
+    /**
+     * Resolves the next state for a given current state and event.
+     */
     public AuthState transition(String currentState, String event) {
         AuthState state = statesById.get(currentState);
         if (state == null) {
@@ -55,7 +66,11 @@ public class AuthStateEngine {
         return target;
     }
 
+    /**
+     * Executes the full login workflow for a single session context.
+     */
     public AuthSessionContext executeLoginFlow(AuthSessionContext context) {
+        log.info("workflow execution started correlationId={} username={} flow={}", context.getCorrelationId(), context.getUsername(), flow.name());
         context.setCurrentState(getInitialState().id());
         move(context, "LOGIN_REQUESTED", "SUCCESS");
         move(context, "OIDC_CALLBACK_RECEIVED", "SUCCESS");
@@ -73,11 +88,13 @@ public class AuthStateEngine {
         } else {
             move(context, "USER_NOT_AUTHORIZED", "FAILURE");
         }
+        log.info("workflow execution completed correlationId={} username={} finalState={}", context.getCorrelationId(), context.getUsername(), context.getFinalState());
         return context;
     }
 
     private void move(AuthSessionContext context, String event, String outcome) {
         String from = context.getCurrentState();
+        log.debug("workflow transition correlationId={} username={} fromState={} event={}", context.getCorrelationId(), context.getUsername(), from, event);
         AuthState target = transition(from, event);
         context.setCurrentState(target.id());
         if (target.finalState()) {

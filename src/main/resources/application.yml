@@ -4,6 +4,7 @@ server:
 auth:
   flows:
     login: classpath:auth-flow.xml
+    step-up: classpath:step-up-auth-flow.xml
   allowed-groups: ${AUTH_ALLOWED_GROUPS:APP_USER,APP_ADMIN}
   audit:
     max-records: ${AUTH_AUDIT_MAX_RECORDS:100}

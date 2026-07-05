@@ -28,7 +28,6 @@
   <rect width="100%" height="100%" fill="white"/>
   <text class="title" x="450" y="34" text-anchor="middle">Spring Boot OIDC Authentication State Engine</text>
 
-  <!-- Main vertical path -->
   <ellipse class="node start" cx="450" cy="90" rx="38" ry="38"/>
   <text class="label" x="450" y="94" text-anchor="middle">START</text>
 
@@ -51,14 +50,12 @@
   <ellipse class="node success" cx="450" cy="620" rx="60" ry="42"/>
   <text class="label" x="450" y="624" text-anchor="middle">AUTH_SUCCESS</text>
 
-  <!-- Failure nodes -->
   <ellipse class="node failure" cx="740" cy="290" rx="70" ry="46"/>
   <text class="label failText" x="740" y="294" text-anchor="middle">AUTH_FAILED</text>
 
   <ellipse class="node failure" cx="740" cy="490" rx="70" ry="46"/>
   <text class="label failText" x="740" y="494" text-anchor="middle">AUTH_FAILED</text>
 
-  <!-- Arrows -->
   <path class="line" d="M 450 128 L 450 160"/>
   <text class="event" x="468" y="145">LOGIN_REQUESTED</text>
 
@@ -69,7 +66,7 @@
   <text class="event" x="468" y="343">TOKEN_VALID</text>
 
   <path class="line-red" d="M 600 290 L 660 290"/>
-  <text class="event failText" x="630" y="278" text-anchor="middle">TOKEN_INVALID</text>
+  <text class="event failText" x="650" y="248" text-anchor="end">TOKEN_INVALID</text>
 
   <path class="line" d="M 450 416 L 450 460"/>
   <text class="event" x="468" y="443">PROFILE_LOADED</text>
@@ -78,5 +75,6 @@
   <text class="event" x="468" y="550">USER_AUTHORIZED</text>
 
   <path class="line-red" d="M 595 490 L 660 490"/>
-  <text class="event failText" x="628" y="478" text-anchor="middle">USER_NOT_AUTHORIZED</text>
+  <text class="event failText" x="650" y="448" text-anchor="end">USER_NOT_AUTHORIZED</text>
 </svg>
+

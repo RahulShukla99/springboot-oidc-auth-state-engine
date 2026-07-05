@@ -16,8 +16,8 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http,
                                             ObjectProvider<ClientRegistrationRepository> clientRegistrations) throws Exception {
         http.authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/auth/flow", "/error").permitAll()
-                        .requestMatchers("/auth/success", "/auth/session", "/auth/audit").authenticated()
+                        .requestMatchers("/", "/auth/flow", "/auth/flow/view", "/auth/flow/*/view", "/error").permitAll()
+                        .requestMatchers("/auth/success", "/auth/success/*", "/auth/session", "/auth/session/*", "/auth/audit").authenticated()
                         .anyRequest().authenticated())
                 .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
                 .sessionManagement(session -> session.sessionFixation().migrateSession())
