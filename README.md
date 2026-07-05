@@ -1,68 +1,162 @@
 # Spring Boot OIDC Authentication State Engine
 
-Enterprise-style authentication orchestration service built with Spring Boot 3.5.x, Java 21, Spring Security OAuth2 Client, Auth0/OIDC, React, Lombok, Maven, and an XML-defined authentication state engine.
+A portfolio-grade Spring Boot 3.5 / Java 21 authentication orchestration service that integrates Spring Security OAuth2 Client with Auth0/OIDC and an XML-defined authentication state engine.
 
-This project is not a basic Auth0 login sample. Auth0 performs identity authentication, while the Spring Boot application owns the post-login journey: callback processing, token/profile checks, authorization decisions, state transitions, final outcome selection, and transition-level audit logging.
+The project separates identity authentication from application-owned post-login orchestration. Auth0 handles identity proofing; the Spring Boot service handles state transitions, profile inspection, authorization decisions, audit records, idempotency, and operational error handling.
 
-## Why this project exists
+## Features
 
-Modern IAM platforms authenticate users, but enterprise applications often need additional application-owned orchestration after login: profile enrichment, authorization rules, failure routing, audit records, correlation IDs, and configurable journey logic. This project demonstrates that separation of responsibilities.
+- OAuth2/OIDC login with Auth0 through Spring Security
+- XML-defined authentication state machine
+- Pluggable flow registry for adding additional auth journeys
+- OIDC profile extraction and email verification checks
+- Group/role authorization with documented fallback when claims are absent
+- Idempotent per-user post-login orchestration using atomic `ConcurrentHashMap.computeIfAbsent`
+- Bounded in-memory audit log with correlation IDs and transition outcomes
+- JSON error responses through `@ControllerAdvice`
+- Secure configuration with environment variables or ignored `application-local.yml`
+- React/Vite frontend for login, flow inspection, and audit inspection
+- Dockerfile, Docker Compose, and GitHub Actions CI
+
+## Tech stack
+
+| Area | Technology |
+|---|---|
+| Runtime | Java 21 |
+| Backend | Spring Boot 3.5.x |
+| Security | Spring Security, Spring Security OAuth2 Client, OIDC |
+| Identity Provider | Auth0-compatible OIDC provider |
+| State engine | Jackson XML + custom deterministic engine |
+| Frontend | React + Vite |
+| Build | Maven |
+| Testing | JUnit 5, Spring Security Test, Mockito via Spring Boot Test |
+| DevOps | Docker, Docker Compose, GitHub Actions |
 
 ## Architecture
 
-```text
-Browser
-  |
-  | GET /oauth2/authorization/auth0
-  v
-Spring Security OAuth2 Client
-  |
-  | Redirect to Auth0 Universal Login
-  v
-Auth0 / OIDC Provider
-  |
-  | Callback: /login/oauth2/code/auth0
-  v
-Spring Boot Application
-  |
-  |-- OIDC principal extraction
-  |-- AuthSessionContext creation
-  |-- XML AuthStateEngine execution
-  |-- AuthorizationService group/role checks
-  |-- In-memory transition audit log
-  v
-JSON authentication journey result
+```mermaid
+flowchart LR
+    Browser[Browser / React UI]
+    SpringSecurity[Spring Security OAuth2 Client]
+    Auth0[Auth0 / OIDC Provider]
+    Controller[AuthController]
+    Authz[AuthorizationService]
+    Registry[AuthFlowRegistry]
+    Engine[AuthStateEngine]
+    XML[(auth-flow.xml)]
+    Audit[InMemoryAuditService]
+
+    Browser -->|Login| SpringSecurity
+    SpringSecurity -->|Redirect| Auth0
+    Auth0 -->|OIDC callback| SpringSecurity
+    SpringSecurity --> Controller
+    Controller --> Authz
+    Controller --> Registry
+    Registry --> Engine
+    XML --> Registry
+    Engine --> Audit
+    Controller -->|JSON result| Browser
 ```
 
 ## Package structure
 
 ```text
 com.rahulshukla.authengine
-  audit       transition audit records and bounded in-memory audit store
-  frontend    React/Vite UI for login, flow metadata, and audit inspection
-  config      Spring Security and auth engine bean configuration
-  controller  REST endpoints for login result, session, flow, and audit views
-  engine      XML flow loader and deterministic state engine
-  exception   domain exceptions and JSON error handling
-  model       immutable flow model and authentication session context
-  service     authorization and session services
+  audit       Audit records and bounded in-memory audit store
+  config      Spring Security, flow registry, and configuration properties
+  controller  REST endpoints for session, flow, audit, and login result
+  engine      XML loader, flow registry, and deterministic state engine
+  exception   Domain exceptions and JSON error handling
+  model       Flow model, session context, and transition history
+  service     Authorization and idempotent session services
+frontend/     React/Vite user interface
+docs/diagrams Graphviz DOT source for generated diagrams
 ```
 
-## Authentication journey
+## Authentication state machine
 
-The flow is configured in `src/main/resources/auth-flow.xml`:
+```mermaid
+stateDiagram-v2
+    [*] --> START
+    START --> REDIRECT_TO_IDP: LOGIN_REQUESTED
+    REDIRECT_TO_IDP --> VALIDATE_TOKEN: OIDC_CALLBACK_RECEIVED
+    VALIDATE_TOKEN --> LOAD_USER_PROFILE: TOKEN_VALID
+    VALIDATE_TOKEN --> AUTH_FAILED: TOKEN_INVALID
+    LOAD_USER_PROFILE --> AUTHORIZE_USER: PROFILE_LOADED
+    AUTHORIZE_USER --> AUTH_SUCCESS: USER_AUTHORIZED
+    AUTHORIZE_USER --> AUTH_FAILED: USER_NOT_AUTHORIZED
+    AUTH_SUCCESS --> [*]
+    AUTH_FAILED --> [*]
+```
+
+Graphviz source is available at:
 
 ```text
-START --LOGIN_REQUESTED--> REDIRECT_TO_IDP
-REDIRECT_TO_IDP --OIDC_CALLBACK_RECEIVED--> VALIDATE_TOKEN
-VALIDATE_TOKEN --TOKEN_VALID--> LOAD_USER_PROFILE
-VALIDATE_TOKEN --TOKEN_INVALID--> AUTH_FAILED
-LOAD_USER_PROFILE --PROFILE_LOADED--> AUTHORIZE_USER
-AUTHORIZE_USER --USER_AUTHORIZED--> AUTH_SUCCESS
-AUTHORIZE_USER --USER_NOT_AUTHORIZED--> AUTH_FAILED
+docs/diagrams/auth-state-machine.dot
 ```
 
-The XML loader validates the flow before the app starts:
+Render SVG when Graphviz is installed:
+
+```bash
+dot -Tsvg docs/diagrams/auth-state-machine.dot -o docs/diagrams/auth-state-machine.svg
+```
+
+## Login sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User as Browser / React UI
+    participant App as Spring Boot App
+    participant Security as Spring Security
+    participant IdP as Auth0
+    participant Engine as XML State Engine
+    participant Audit as Audit Service
+
+    User->>App: GET /
+    App-->>User: JSON login URL
+    User->>Security: GET /oauth2/authorization/auth0
+    Security->>IdP: Redirect to Universal Login
+    IdP-->>Security: /login/oauth2/code/auth0
+    Security->>App: Authenticated OidcUser
+    App->>Engine: Execute login flow
+    Engine->>Audit: Record each transition
+    App-->>User: Final auth result JSON
+```
+
+## Component interaction
+
+```mermaid
+flowchart TD
+    AuthController --> AuthorizationService
+    AuthController --> AuthSessionService
+    AuthController --> AuthFlowRegistry
+    AuthFlowRegistry --> AuthStateEngine
+    AuthStateEngine --> InMemoryAuditService
+    XmlAuthFlowLoader --> AuthFlowRegistry
+    GlobalExceptionHandler --> ApiError
+```
+
+## XML flow configuration
+
+Default flow configuration:
+
+```yaml
+auth:
+  flows:
+    login: classpath:auth-flow.xml
+```
+
+Additional flows can be added without changing controller code by adding another XML file and registering it under `auth.flows`:
+
+```yaml
+auth:
+  flows:
+    login: classpath:auth-flow.xml
+    step-up: classpath:step-up-auth-flow.xml
+```
+
+The XML loader validates:
 
 - exactly one initial state
 - unique non-blank state IDs
@@ -70,48 +164,56 @@ The XML loader validates the flow before the app starts:
 - every transition target exists
 - no outgoing transitions from final states
 - duplicate transition events from the same state are rejected
-- malformed XML returns a clear startup exception
+- invalid XML returns a clear exception
 
 ## Security configuration
 
-Spring Security is configured for OAuth2/OIDC login using the `auth0` registration.
+Default profile starts safely without OAuth client registration. Real Auth0/OIDC login is enabled through either the `oauth` profile or an ignored `application-local.yml`.
 
-- Login URL: `/oauth2/authorization/auth0`
-- Callback URL: `/login/oauth2/code/auth0`
-- Public endpoints: `/`, `/auth/flow`, `/error`
-- Authenticated endpoints: `/auth/success`, `/auth/session`, `/auth/audit`
-- Session fixation protection enabled
-- CSRF token repository configured
-- Security headers include CSP, frame denial, and no-referrer policy
-- No secrets are committed; all client secrets come from environment variables
+Security controls included:
+
+- no committed secrets
+- session fixation protection
+- CSRF token repository
+- content security policy
+- frame denial
+- no-referrer policy
+- authenticated access for `/auth/success`, `/auth/session`, and `/auth/audit`
 
 ## Auth0 setup
 
-1. Create an Auth0 **Regular Web Application**.
-2. Configure Allowed Callback URLs:
+Create an Auth0 Regular Web Application and configure:
 
-   ```text
-   http://localhost:8080/login/oauth2/code/auth0
-   ```
+```text
+Allowed Callback URL: http://localhost:8080/login/oauth2/code/auth0
+Allowed Logout URL:   http://localhost:8080/
+```
 
-3. Configure Allowed Logout URLs if needed:
+Use these placeholders in local configuration:
 
-   ```text
-   http://localhost:8080/
-   ```
+```text
+your-client-id
+your-client-secret
+https://your-auth0-domain.us.auth0.com/
+```
 
-4. Copy your client ID, client secret, and issuer URI.
-5. Optional: add `groups` or `roles` claims to ID tokens using Auth0 Actions.
+Do not commit real values.
 
-Auth0 does not include group/role claims in ID tokens by default. If no group claims are present, this demo allows a user when the email is present and verified. If groups are present, at least one must match `auth.allowed-groups`.
+## Local setup
 
-## Local secrets configuration
+### Run without Auth0
 
-No Auth0 tenant URL, client ID, client secret, or API key should be committed to git.
+```bash
+mvn spring-boot:run
+```
 
-The default profile starts without OAuth client registration so the project can run safely from a clean checkout. Use either environment variables with the `oauth` profile or a local Spring profile file for real Auth0 login.
+Open:
 
-### Option 1: environment variables with the `oauth` profile
+```text
+http://localhost:8080/
+```
+
+### Run with environment variables
 
 Bash:
 
@@ -119,8 +221,7 @@ Bash:
 export AUTH0_CLIENT_ID=your-client-id
 export AUTH0_CLIENT_SECRET=your-client-secret
 export AUTH0_ISSUER_URI=https://your-auth0-domain.us.auth0.com/
-export AUTH_ALLOWED_GROUPS=APP_USER,APP_ADMIN
-export AUTH_AUDIT_MAX_RECORDS=100
+mvn spring-boot:run -Dspring-boot.run.profiles=oauth
 ```
 
 PowerShell:
@@ -129,179 +230,19 @@ PowerShell:
 $env:AUTH0_CLIENT_ID="your-client-id"
 $env:AUTH0_CLIENT_SECRET="your-client-secret"
 $env:AUTH0_ISSUER_URI="https://your-auth0-domain.us.auth0.com/"
-$env:AUTH_ALLOWED_GROUPS="APP_USER,APP_ADMIN"
-$env:AUTH_AUDIT_MAX_RECORDS="100"
-```
-
-Run with the OAuth profile:
-
-```bash
 mvn spring-boot:run -Dspring-boot.run.profiles=oauth
 ```
 
-### Option 2: local Spring profile file
-
-Copy the example file:
+### Run with local profile file
 
 ```bash
 cp src/main/resources/application-example.yml src/main/resources/application-local.yml
-```
-
-PowerShell:
-
-```powershell
-Copy-Item src/main/resources/application-example.yml src/main/resources/application-local.yml
-```
-
-Fill in local values using placeholders as a guide:
-
-```yaml
-spring:
-  security:
-    oauth2:
-      client:
-        registration:
-          auth0:
-            client-id: your-client-id
-            client-secret: your-client-secret
-        provider:
-          auth0:
-            issuer-uri: https://your-auth0-domain.us.auth0.com/
-```
-
-Run with the local profile:
-
-```bash
 mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-`src/main/resources/application-local.yml`, root-level `application-local.yml`, and `.env` are ignored by git.
-
-## Run locally
-
-Without OAuth configured, the app starts in documentation/demo mode:
-
-```bash
-mvn spring-boot:run
-```
-
-With Auth0 configured, use either the `oauth` or `local` profile shown above.
-
-Open:
-
-```text
-http://localhost:8080/
-```
-
-Start OIDC login:
-
-```text
-http://localhost:8080/oauth2/authorization/auth0
-```
-
-## Endpoints
-
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| GET | `/` | Public | Welcome message and login URL |
-| GET | `/auth/flow` | Public | Loaded XML flow rendered as JSON |
-| GET | `/auth/success` | Authenticated | Executes the post-login state engine |
-| GET | `/auth/session` | Authenticated | Current OIDC user and final auth state |
-| GET | `/auth/audit` | Authenticated | Recent bounded in-memory transition audit records |
-
-## Sample state engine response
-
-```json
-{
-  "correlationId": "7f8f3f1c-8c5b-45db-95e1-2d890e6d50c6",
-  "username": "user@example.com",
-  "fullName": "Example User",
-  "emailVerified": true,
-  "groupsOrRoles": ["APP_USER"],
-  "currentState": "AUTH_SUCCESS",
-  "finalState": "AUTH_SUCCESS",
-  "failureReason": null,
-  "transitionHistory": [
-    {
-      "fromState": "START",
-      "event": "LOGIN_REQUESTED",
-      "toState": "REDIRECT_TO_IDP",
-      "timestamp": "2026-07-04T21:00:00Z"
-    }
-  ]
-}
-```
-
-## Sample audit record
-
-```json
-{
-  "correlationId": "7f8f3f1c-8c5b-45db-95e1-2d890e6d50c6",
-  "username": "user@example.com",
-  "fromState": "AUTHORIZE_USER",
-  "event": "USER_AUTHORIZED",
-  "toState": "AUTH_SUCCESS",
-  "timestamp": "2026-07-04T21:00:01Z",
-  "outcome": "SUCCESS"
-}
-```
-
-## Error handling
-
-Application errors are returned as clean JSON:
-
-```json
-{
-  "timestamp": "2026-07-04T21:00:00Z",
-  "status": 400,
-  "error": "Bad Request",
-  "message": "Transition target MISSING does not exist",
-  "path": "/auth/flow"
-}
-```
-
-Unexpected exceptions are logged server-side and return a generic message to avoid leaking internals.
-
-## Tests
-
-Run:
-
-```bash
-mvn test
-```
-
-The test suite covers:
-
-- valid XML flow loading
-- duplicate state rejection
-- blank state ID rejection
-- missing transition target rejection
-- valid and invalid state transitions
-- failed authorization audit outcome
-- bounded audit log retention
-- verified OIDC user authorization
-- missing email rejection
-- unverified email rejection
-- missing groups fallback behavior
-- disallowed group rejection
-
-## IAM / OAuth2 / OIDC concepts demonstrated
-
-- Externalized identity authentication with Auth0/OIDC
-- Spring Security OAuth2 Client login flow
-- Environment-based secret management
-- Application-owned post-login orchestration
-- Configurable XML state machine for auth journeys
-- OIDC profile and email verification checks
-- Role/group-based authorization with documented fallback
-- Correlation IDs and transition audit records
-- Security headers and session fixation protection
-- Lombok usage for constructor, accessor, and logger boilerplate reduction
-- Clean operational error responses
+`application-local.yml` is ignored by git.
 
 ## React UI
-
-The project uses a React/Vite frontend instead of Thymeleaf.
 
 ```bash
 cd frontend
@@ -309,23 +250,108 @@ npm install
 npm run dev
 ```
 
-For local API proxying during frontend development, run the Spring Boot API on port `8080` and access the login URL directly from the React UI.
+The UI provides links to login, view session JSON, inspect the loaded flow, and load recent audit records.
 
-## Idempotency, concurrency, locking, and retries
+## Docker
 
-Current implementation choices:
+Build and run:
 
-- **Idempotency:** post-login orchestration is idempotent per username/email within one application instance. `AuthSessionService.findOrCreateCompletedSession` uses `ConcurrentHashMap.computeIfAbsent` so concurrent callbacks for the same user create and execute only one completed session result.
-- **Concurrency lock:** no global lock is used. The lock scope is one username key inside `ConcurrentHashMap`, reducing contention and avoiding unrelated users blocking each other.
-- **Deadlock reduction:** there are no nested locks, no cross-key locking, and no blocking network calls inside custom locks. The state engine operates on a per-session context.
-- **Transaction boundaries:** this sample is intentionally in-memory, so there is no database transaction. In production, store session/audit records in a database transaction around one auth journey result, with a unique constraint on an idempotency key such as correlation ID or provider subject.
-- **Retry behavior:** the app does not retry OAuth2/OIDC login callbacks internally. Browser or IdP retries are handled idempotently by returning the existing session result for the same username. Production retries for downstream dependencies should be bounded, timeout-driven, and only used for safe/idempotent operations.
-- **Audit storage:** in-memory audit records are bounded by `AUTH_AUDIT_MAX_RECORDS`. Production should use an append-only durable audit sink.
+```bash
+docker build -t auth-state-engine .
+docker run -p 8080:8080 auth-state-engine
+```
 
-## Production notes
+Docker Compose with OAuth placeholders:
 
-For a production deployment, replace in-memory session/audit storage with persistent storage, add structured log forwarding, use a centralized audit sink, add rate limiting, and enforce HTTPS at the edge. In a multi-instance deployment, do not rely on in-memory state for compliance-grade audit history. Use database uniqueness plus optimistic locking for cross-instance idempotency.
+```bash
+docker compose up --build
+```
+
+Set real values through environment variables or an uncommitted `.env` file before using OAuth login.
+
+## API endpoints
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| GET | `/` | Public | JSON welcome message and login URL |
+| GET | `/auth/flow` | Public | Loaded XML flow as JSON |
+| GET | `/auth/success` | Authenticated | Executes post-login orchestration |
+| GET | `/auth/session` | Authenticated | Current authenticated user details |
+| GET | `/auth/audit` | Authenticated | Recent transition audit records |
+
+## Screenshots
+
+Add screenshots before publishing:
+
+```text
+docs/screenshots/home.png
+docs/screenshots/flow.png
+docs/screenshots/audit.png
+```
+
+Suggested screenshots:
+
+- React landing page
+- `/auth/flow` JSON output
+- successful `/auth/success` response
+- `/auth/audit` transition history
+
+## Testing
+
+```bash
+mvn test
+```
+
+The test suite covers XML validation, invalid transitions, authorization decisions, idempotent session creation, audit retention, JSON content negotiation, and clean startup without OAuth secrets.
+
+## CI
+
+GitHub Actions workflow:
+
+```text
+.github/workflows/ci.yml
+```
+
+It builds the Java application, runs tests, packages the jar, and builds the React frontend.
+
+## Current limitations
+
+- Audit storage is in-memory and not compliance-grade.
+- Idempotency is per JVM instance; production needs a database unique constraint or distributed store.
+- Authorization rules are intentionally simple and claim-based.
+- The React UI is intentionally lightweight and focused on demonstrating the auth journey.
+
+## Future enhancements
+
+High-impact additions that keep the design understandable:
+
+- persistent audit table with append-only writes
+- database-backed idempotency keys with unique constraints
+- step-up authentication flow for sensitive actions
+- policy-based authorization abstraction for group, role, and risk claims
+- OpenTelemetry traces with correlation IDs
+- actuator health endpoint for Auth0 issuer metadata reachability
+- signed audit export or event publishing through an outbox pattern
+- integration tests using WireMock for OIDC discovery metadata
+
+## Engineering review notes
+
+Strengths:
+
+- clear separation between identity authentication and application-owned orchestration
+- deterministic XML state machine with validation
+- profile-based secret management suitable for public repositories
+- concurrency-aware idempotency for repeated login callbacks
+- CI, Docker, React UI, and documented extension points
+
+Improvement areas for a production system:
+
+- replace in-memory audit/session stores with durable storage
+- use database transactions for session result and audit writes
+- add distributed idempotency for multi-instance deployments
+- add richer authorization policy modeling
+- add integration tests against mocked OIDC discovery and JWKS endpoints
 
 ## Resume bullet
 
-Designed and developed a Spring Boot authentication orchestration service using OAuth2/OIDC with Auth0/Okta as the external Identity Provider. Implemented an XML-driven state engine to manage login, callback handling, token validation, profile loading, role/group-based authorization, failure handling, and audit logging.
+Designed and developed a Spring Boot authentication orchestration service using OAuth2/OIDC with Auth0/Okta-compatible external identity providers. Implemented an XML-driven state engine to manage login, callback handling, token validation, profile loading, role/group-based authorization, failure handling, idempotency, and audit logging.

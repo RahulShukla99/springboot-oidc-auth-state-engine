@@ -20,6 +20,8 @@ spring:
             issuer-uri: https://your-auth0-domain.us.auth0.com/
 
 auth:
+  flows:
+    login: classpath:auth-flow.xml
   allowed-groups: APP_USER,APP_ADMIN
   audit:
     max-records: 100

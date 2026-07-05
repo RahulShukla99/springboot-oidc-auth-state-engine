@@ -1,0 +1,40 @@
+digraph AuthStateMachine {
+  rankdir=LR;
+  graph [
+    label="Spring Boot OIDC Authentication State Engine",
+    labelloc=t,
+    fontsize=20,
+    fontname="Arial",
+    bgcolor="white"
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="Arial",
+    fontsize=12,
+    color="#344054",
+    fillcolor="#F9FAFB"
+  ];
+  edge [
+    fontname="Arial",
+    fontsize=10,
+    color="#475467",
+    arrowsize=0.8
+  ];
+
+  START [shape=circle, fillcolor="#DBEAFE", color="#2563EB", penwidth=2];
+  REDIRECT_TO_IDP [label="REDIRECT_TO_IDP\nSpring Security redirects to Auth0", fillcolor="#EFF6FF"];
+  VALIDATE_TOKEN [label="VALIDATE_TOKEN\nOIDC token and email verification", fillcolor="#FEF3C7"];
+  LOAD_USER_PROFILE [label="LOAD_USER_PROFILE\nExtract email, name, groups/roles", fillcolor="#F5F3FF"];
+  AUTHORIZE_USER [label="AUTHORIZE_USER\nAllowed group/role decision", fillcolor="#ECFDF3"];
+  AUTH_SUCCESS [shape=doublecircle, label="AUTH_SUCCESS", fillcolor="#DCFCE7", color="#16A34A", penwidth=2];
+  AUTH_FAILED [shape=doublecircle, label="AUTH_FAILED", fillcolor="#FEE2E2", color="#DC2626", penwidth=2];
+
+  START -> REDIRECT_TO_IDP [label="LOGIN_REQUESTED"];
+  REDIRECT_TO_IDP -> VALIDATE_TOKEN [label="OIDC_CALLBACK_RECEIVED"];
+  VALIDATE_TOKEN -> LOAD_USER_PROFILE [label="TOKEN_VALID"];
+  VALIDATE_TOKEN -> AUTH_FAILED [label="TOKEN_INVALID", color="#DC2626", fontcolor="#DC2626"];
+  LOAD_USER_PROFILE -> AUTHORIZE_USER [label="PROFILE_LOADED"];
+  AUTHORIZE_USER -> AUTH_SUCCESS [label="USER_AUTHORIZED", color="#16A34A", fontcolor="#16A34A"];
+  AUTHORIZE_USER -> AUTH_FAILED [label="USER_NOT_AUTHORIZED", color="#DC2626", fontcolor="#DC2626"];
+}
