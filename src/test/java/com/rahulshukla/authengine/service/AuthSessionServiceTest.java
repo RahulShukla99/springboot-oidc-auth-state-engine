@@ -56,4 +56,17 @@ class AuthSessionServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("username must not be blank");
     }
+
+    @Test
+    void shouldKeepSessionsSeparatePerFlowForSameUser() {
+        AuthSessionService service = new AuthSessionService();
+
+        AuthSessionContext loginSession = service.findOrCreateCompletedSession("login", "user@example.com", () -> new AuthSessionContext("login-corr"));
+        AuthSessionContext stepUpSession = service.findOrCreateCompletedSession("step-up", "user@example.com", () -> new AuthSessionContext("step-up-corr"));
+
+        assertThat(loginSession.getCorrelationId()).isEqualTo("login-corr");
+        assertThat(stepUpSession.getCorrelationId()).isEqualTo("step-up-corr");
+        assertThat(service.findByFlowAndUsername("login", "user@example.com")).contains(loginSession);
+        assertThat(service.findByFlowAndUsername("step-up", "user@example.com")).contains(stepUpSession);
+    }
 }

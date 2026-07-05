@@ -22,6 +22,7 @@ spring:
 auth:
   flows:
     login: classpath:auth-flow.xml
+    step-up: classpath:step-up-auth-flow.xml
   allowed-groups: APP_USER,APP_ADMIN
   audit:
     max-records: 100

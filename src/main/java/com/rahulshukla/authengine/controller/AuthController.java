@@ -2,7 +2,7 @@ package com.rahulshukla.authengine.controller;
 
 import com.rahulshukla.authengine.audit.AuthAuditRecord;
 import com.rahulshukla.authengine.audit.InMemoryAuditService;
-import com.rahulshukla.authengine.engine.AuthStateEngine;
+import com.rahulshukla.authengine.engine.AuthFlowRegistry;
 import com.rahulshukla.authengine.model.AuthFlow;
 import com.rahulshukla.authengine.model.AuthSessionContext;
 import com.rahulshukla.authengine.model.AuthState;
@@ -15,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -33,11 +34,12 @@ import java.util.Optional;
 @RequestMapping(produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
 public class AuthController {
-    private final AuthStateEngine stateEngine;
+    private static final String DEFAULT_FLOW = "login";
+
+    private final AuthFlowRegistry flowRegistry;
     private final AuthorizationService authorizationService;
     private final AuthSessionService sessionService;
     private final InMemoryAuditService auditService;
-    private final AuthFlow authFlow;
 
     @GetMapping("/")
     public HomeResponse home() {
@@ -46,18 +48,28 @@ public class AuthController {
 
     @GetMapping("/auth/success")
     public AuthSessionContext success(@AuthenticationPrincipal OidcUser user) {
+        return success(DEFAULT_FLOW, user);
+    }
+
+    @GetMapping("/auth/success/{flowName}")
+    public AuthSessionContext success(@PathVariable String flowName, @AuthenticationPrincipal OidcUser user) {
         AuthorizationDecision decision = authorizationService.authorize(user);
         String username = username(user);
         if (username == null || username.isBlank()) {
-            return executeNewLoginFlow(user, decision);
+            return executeNewLoginFlow(flowName, user, decision);
         }
-        return sessionService.findOrCreateCompletedSession(username, () -> executeNewLoginFlow(user, decision));
+        return sessionService.findOrCreateCompletedSession(flowName, username, () -> executeNewLoginFlow(flowName, user, decision));
     }
 
     @GetMapping("/auth/session")
     public SessionResponse session(Authentication authentication, @AuthenticationPrincipal OidcUser user) {
+        return session(DEFAULT_FLOW, authentication, user);
+    }
+
+    @GetMapping("/auth/session/{flowName}")
+    public SessionResponse session(@PathVariable String flowName, Authentication authentication, @AuthenticationPrincipal OidcUser user) {
         String username = username(user);
-        AuthSessionContext context = username == null ? null : sessionService.findByUsername(username).orElse(null);
+        AuthSessionContext context = username == null ? null : sessionService.findByFlowAndUsername(flowName, username).orElse(null);
         return new SessionResponse(
                 authentication != null && authentication.isAuthenticated(),
                 username,
@@ -71,6 +83,12 @@ public class AuthController {
 
     @GetMapping("/auth/flow")
     public FlowResponse flow() {
+        return flow(DEFAULT_FLOW);
+    }
+
+    @GetMapping("/auth/flow/{flowName}")
+    public FlowResponse flow(@PathVariable String flowName) {
+        AuthFlow authFlow = flowRegistry.getRequiredEngine(flowName).flow();
         return new FlowResponse(
                 authFlow.name(),
                 authFlow.initialState().id(),
@@ -88,12 +106,12 @@ public class AuthController {
         return auditService.recentRecords();
     }
 
-    private AuthSessionContext executeNewLoginFlow(OidcUser user, AuthorizationDecision decision) {
+    private AuthSessionContext executeNewLoginFlow(String flowName, OidcUser user, AuthorizationDecision decision) {
         AuthSessionContext context = buildContext(user);
         if (!decision.authorized()) {
             context.setFailureReason(decision.reason());
         }
-        return stateEngine.executeLoginFlow(context);
+        return flowRegistry.getRequiredEngine(flowName).executeLoginFlow(context);
     }
 
     private AuthSessionContext buildContext(OidcUser user) {

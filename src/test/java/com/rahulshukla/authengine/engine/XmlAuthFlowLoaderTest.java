@@ -20,6 +20,26 @@ class XmlAuthFlowLoaderTest {
     }
 
     @Test
+    void shouldLoadStepUpMfaFlow() {
+        XmlAuthFlowLoader loader = new XmlAuthFlowLoader("classpath:step-up-auth-flow.xml");
+
+        var flow = loader.load();
+
+        assertThat(flow.name()).isEqualTo("step-up-mfa-flow");
+        assertThat(flow.initialState().id()).isEqualTo("START");
+        assertThat(flow.finalStates()).extracting("id").containsExactly("STEP_UP_SUCCESS", "AUTH_FAILED");
+        assertThat(flow.states()).extracting("id").containsExactly(
+                "START",
+                "REDIRECT_TO_IDP",
+                "VALIDATE_TOKEN",
+                "LOAD_USER_PROFILE",
+                "REQUIRE_MFA",
+                "STEP_UP_SUCCESS",
+                "AUTH_FAILED"
+        );
+    }
+
+    @Test
     void shouldRejectDuplicateStates() {
         XmlAuthFlowLoader loader = new XmlAuthFlowLoader("classpath:duplicate-state-auth-flow.xml");
 

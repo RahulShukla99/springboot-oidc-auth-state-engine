@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<authFlow name="step-up-mfa-flow">
+    <states>
+        <state id="START" initial="true" final="false">
+            <transitions>
+                <transition event="LOGIN_REQUESTED" target="REDIRECT_TO_IDP"/>
+            </transitions>
+        </state>
+        <state id="REDIRECT_TO_IDP" initial="false" final="false">
+            <transitions>
+                <transition event="OIDC_CALLBACK_RECEIVED" target="VALIDATE_TOKEN"/>
+            </transitions>
+        </state>
+        <state id="VALIDATE_TOKEN" initial="false" final="false">
+            <transitions>
+                <transition event="TOKEN_VALID" target="LOAD_USER_PROFILE"/>
+                <transition event="TOKEN_INVALID" target="AUTH_FAILED"/>
+            </transitions>
+        </state>
+        <state id="LOAD_USER_PROFILE" initial="false" final="false">
+            <transitions>
+                <transition event="PROFILE_LOADED" target="REQUIRE_MFA"/>
+            </transitions>
+        </state>
+        <state id="REQUIRE_MFA" initial="false" final="false">
+            <transitions>
+                <transition event="MFA_PASSED" target="STEP_UP_SUCCESS"/>
+                <transition event="MFA_FAILED" target="AUTH_FAILED"/>
+            </transitions>
+        </state>
+        <state id="STEP_UP_SUCCESS" initial="false" final="true"/>
+        <state id="AUTH_FAILED" initial="false" final="true"/>
+    </states>
+</authFlow>

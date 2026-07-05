@@ -1,0 +1,109 @@
+{
+  "info": {
+    "_postman_id": "3f0f9f52-3bd7-4d73-a6d4-2d0c2f1d9f55",
+    "name": "springboot-oidc-auth-state-engine",
+    "description": "Collection for the Spring Boot OIDC Authentication State Engine. Public endpoints work directly; authenticated endpoints require an active browser-authenticated session.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "Home",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": ["/"]
+            },
+            "description": "Returns the landing payload with the login URL."
+          }
+        },
+        {
+          "name": "Auth Flow",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/flow",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "flow"]
+            },
+            "description": "Returns the loaded XML auth flow as JSON."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authenticated",
+      "item": [
+        {
+          "name": "Auth Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/session",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "session"]
+            },
+            "description": "Requires an authenticated browser session. Returns the current user snapshot and workflow state."
+          }
+        },
+        {
+          "name": "Auth Success",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/success",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "success"]
+            },
+            "description": "Requires an authenticated browser session. Executes the post-login workflow."
+          }
+        },
+        {
+          "name": "Auth Audit",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/audit",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "audit"]
+            },
+            "description": "Requires an authenticated browser session. Returns recent audit records."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login Entry Point",
+      "item": [
+        {
+          "name": "Start OAuth2 Login",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/oauth2/authorization/auth0",
+              "host": ["{{baseUrl}}"],
+              "path": ["oauth2", "authorization", "auth0"]
+            },
+            "description": "Browser redirect entry point for Auth0/OIDC login. In Postman this typically returns a redirect."
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    }
+  ]
+}

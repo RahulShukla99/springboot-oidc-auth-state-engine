@@ -18,13 +18,29 @@ public class AuthSessionService {
     private final ConcurrentHashMap<String, AuthSessionContext> sessions = new ConcurrentHashMap<>();
 
     public AuthSessionContext findOrCreateCompletedSession(String username, Supplier<AuthSessionContext> sessionSupplier) {
-        if (username == null || username.isBlank()) {
-            throw new IllegalArgumentException("username must not be blank");
-        }
-        return sessions.computeIfAbsent(username, ignored -> sessionSupplier.get());
+        return findOrCreateCompletedSession("login", username, sessionSupplier);
+    }
+
+    public AuthSessionContext findOrCreateCompletedSession(String flowName, String username, Supplier<AuthSessionContext> sessionSupplier) {
+        validateUsername(username);
+        return sessions.computeIfAbsent(sessionKey(flowName, username), ignored -> sessionSupplier.get());
     }
 
     public Optional<AuthSessionContext> findByUsername(String username) {
-        return Optional.ofNullable(sessions.get(username));
+        return findByFlowAndUsername("login", username);
+    }
+
+    public Optional<AuthSessionContext> findByFlowAndUsername(String flowName, String username) {
+        return Optional.ofNullable(sessions.get(sessionKey(flowName, username)));
+    }
+
+    private void validateUsername(String username) {
+        if (username == null || username.isBlank()) {
+            throw new IllegalArgumentException("username must not be blank");
+        }
+    }
+
+    private String sessionKey(String flowName, String username) {
+        return flowName + ":" + username;
     }
 }
