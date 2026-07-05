@@ -25,6 +25,10 @@ public class AuthStateEngine {
         this.statesById = flow.states().stream().collect(Collectors.toUnmodifiableMap(AuthState::id, Function.identity()));
     }
 
+    public AuthFlow flow() {
+        return flow;
+    }
+
     public AuthState getInitialState() {
         return flow.initialState();
     }

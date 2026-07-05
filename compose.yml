@@ -1,0 +1,12 @@
+services:
+  auth-engine:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: oauth
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-your-client-id}
+      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET:-your-client-secret}
+      AUTH0_ISSUER_URI: ${AUTH0_ISSUER_URI:-https://your-auth0-domain.us.auth0.com/}
+      AUTH_ALLOWED_GROUPS: ${AUTH_ALLOWED_GROUPS:-APP_USER,APP_ADMIN}
+      AUTH_AUDIT_MAX_RECORDS: ${AUTH_AUDIT_MAX_RECORDS:-100}
