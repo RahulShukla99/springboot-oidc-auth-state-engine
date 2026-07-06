@@ -45,3 +45,6 @@ mvn test
 
 ### Postman
 - `docs/postman/springboot-oidc-auth-state-engine.postman_collection.json`
+
+### License
+- MIT License (`LICENSE`)
