@@ -1,9 +1,9 @@
 # Spring Boot OIDC Authentication State Engine
 
-High-level goal: externalize the post-login authentication journey into a deterministic XML workflow so Auth0 handles identity and the application handles authorization, session state, and audit trails.
+High-level goal: externalize the post-login authentication journey into a deterministic XML workflow so Auth0 handles identity and the application handles authorization, session state, audit trails, and browser-visible flow inspection.
 
 ## Project summary
-Built a Spring Boot 3.5 / Java 21 authentication orchestration service for Auth0/OIDC logins.
+Built a Spring Boot 3.5 / Java 21 authentication orchestration service for Auth0/OIDC logins with JSON APIs and browser flow views.
 
 ### Highlights
 - XML-driven login and step-up/MFA flows
@@ -12,7 +12,7 @@ Built a Spring Boot 3.5 / Java 21 authentication orchestration service for Auth0
 - Structured logs on critical workflow paths
 - Bounded audit trail with correlation IDs
 - JSON endpoints for flow, session, and audit inspection
-- Browser view for the state engine diagram
+- Browser views for the state engine diagrams
 - Docker, React UI, and AWS-ready deployment model
 
 ### Core flows
