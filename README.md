@@ -25,8 +25,11 @@ Built a Spring Boot 3.5 / Java 21 authentication orchestration service for Auth0
 
 ### API endpoints
 - `GET /`
+- `GET /auth/flow`
 - `GET /auth/flow/{flowName}`
+- `GET /auth/success`
 - `GET /auth/success/{flowName}`
+- `GET /auth/session`
 - `GET /auth/session/{flowName}`
 - `GET /auth/audit`
 
