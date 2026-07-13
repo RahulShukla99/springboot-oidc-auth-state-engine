@@ -19,10 +19,26 @@ spring:
           auth0:
             issuer-uri: https://your-auth0-domain.us.auth0.com/
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
 auth:
   flows:
     login: classpath:auth-flow.xml
     step-up: classpath:step-up-auth-flow.xml
+  logout:
+    post-logout-redirect-uri: http://localhost:8080/
+  jwt:
+    allowed-clock-skew-seconds: 60
+  mfa:
+    challenge-code: 123456
   allowed-groups: APP_USER,APP_ADMIN
   audit:
     max-records: 100

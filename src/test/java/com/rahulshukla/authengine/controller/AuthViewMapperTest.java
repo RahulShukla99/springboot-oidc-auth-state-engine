@@ -5,7 +5,6 @@ import com.rahulshukla.authengine.model.AuthSessionContext;
 import com.rahulshukla.authengine.model.AuthState;
 import com.rahulshukla.authengine.model.AuthTransition;
 import org.junit.jupiter.api.Test;
-import org.mapstruct.factory.Mappers;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -20,7 +19,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AuthViewMapperTest {
-    private final AuthViewMapper mapper = Mappers.getMapper(AuthViewMapper.class);
+    private final AuthViewMapper mapper = new AuthViewMapper();
 
     @Test
     void shouldMapFlowResponseFromAuthFlow() {
@@ -50,6 +49,11 @@ class AuthViewMapperTest {
     }
 
     @Test
+    void shouldReturnNullWhenAuthFlowIsMissing() {
+        assertThat(mapper.toFlowResponse(null)).isNull();
+    }
+
+    @Test
     void shouldMapSessionResponseFromAuthenticationAndContext() {
         AuthSessionContext context = new AuthSessionContext("corr-1");
         context.setCurrentState("AUTHORIZE_USER");
@@ -75,6 +79,60 @@ class AuthViewMapperTest {
         assertThat(response.authorities()).extracting(authority -> ((GrantedAuthority) authority).getAuthority()).containsExactly("ROLE_USER");
         assertThat(response.currentState()).isEqualTo("AUTHORIZE_USER");
         assertThat(response.finalState()).isEqualTo("AUTH_SUCCESS");
+    }
+
+    @Test
+    void shouldPreferOidcValuesWhenContextIsMissing() {
+        OidcUser user = oidcUser(Map.of(
+                "email", "user@example.com",
+                "email_verified", false,
+                "sub", "auth0|123"
+        ));
+        TestingAuthenticationToken authentication = new TestingAuthenticationToken("principal", "credentials");
+        authentication.setAuthenticated(false);
+
+        AuthController.SessionResponse response = mapper.toSessionResponse(authentication, user, null);
+
+        assertThat(response.authenticated()).isFalse();
+        assertThat(response.username()).isEqualTo("user@example.com");
+        assertThat(response.fullName()).isNull();
+        assertThat(response.emailVerified()).isFalse();
+        assertThat(response.authorities()).isEmpty();
+        assertThat(response.currentState()).isNull();
+        assertThat(response.finalState()).isNull();
+    }
+
+    @Test
+    void shouldReturnNullIdentityWhenAuthenticationAndUserAreMissing() {
+        AuthController.SessionResponse response = mapper.toSessionResponse(null, null, null);
+
+        assertThat(response.authenticated()).isFalse();
+        assertThat(response.username()).isNull();
+        assertThat(response.fullName()).isNull();
+        assertThat(response.emailVerified()).isFalse();
+        assertThat(response.authorities()).isEmpty();
+    }
+
+    @Test
+    void shouldFavorContextValuesAndFallbackToPrincipalValuesWhenPartialContextExists() {
+        AuthSessionContext context = new AuthSessionContext("corr-2");
+        context.setUsername(null);
+        context.setFullName(null);
+        context.setEmailVerified(false);
+        OidcUser user = oidcUser(Map.of(
+                "email", "user@example.com",
+                "name", "User Example",
+                "email_verified", true,
+                "sub", "auth0|456"
+        ));
+        TestingAuthenticationToken authentication = new TestingAuthenticationToken("principal", "credentials", List.of());
+        authentication.setAuthenticated(true);
+
+        AuthController.SessionResponse response = mapper.toSessionResponse(authentication, user, context);
+
+        assertThat(response.username()).isEqualTo("user@example.com");
+        assertThat(response.fullName()).isEqualTo("User Example");
+        assertThat(response.emailVerified()).isFalse();
     }
 
     private OidcUser oidcUser(Map<String, Object> claims) {

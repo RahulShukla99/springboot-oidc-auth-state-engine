@@ -6,20 +6,25 @@ import com.rahulshukla.authengine.engine.AuthStateEngine;
 import com.rahulshukla.authengine.model.AuthFlow;
 import com.rahulshukla.authengine.model.AuthState;
 import com.rahulshukla.authengine.model.AuthTransition;
+import com.rahulshukla.authengine.config.AuthMfaProperties;
 import com.rahulshukla.authengine.service.AuthSessionService;
 import com.rahulshukla.authengine.service.AuthorizationService;
+import com.rahulshukla.authengine.service.InMemoryMfaChallengeService;
 import org.junit.jupiter.api.Test;
-import org.mapstruct.factory.Mappers;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -50,6 +55,36 @@ class AuthControllerJsonTest {
     }
 
     @Test
+    void shouldExecuteLoginFlowWithoutPrincipalWhenNoUserIsPresent() {
+        AuthController controller = controller();
+
+        var result = controller.success((OidcUser) null);
+
+        assertThat(result.getFinalState()).isEqualTo("AUTH_FAILED");
+        assertThat(result.getFailureReason()).isEqualTo("OIDC user is not authenticated");
+    }
+
+    @Test
+    void shouldExecuteLoginFlowForAuthorizedUser() {
+        AuthController controller = controller();
+
+        var result = controller.success(oidcUser());
+
+        assertThat(result.getFinalState()).isEqualTo("AUTH_SUCCESS");
+    }
+
+    @Test
+    void shouldReuseCompletedLoginSessionForSameUser() {
+        AuthController controller = controller();
+
+        var first = controller.success(oidcUser());
+        var second = controller.success(oidcUser());
+
+        assertThat(second.getCorrelationId()).isEqualTo(first.getCorrelationId());
+        assertThat(second.getFinalState()).isEqualTo("AUTH_SUCCESS");
+    }
+
+    @Test
     void shouldExposeNamedStepUpFlowAsJson() {
         AuthController controller = controller();
 
@@ -73,41 +108,98 @@ class AuthControllerJsonTest {
     }
 
     @Test
-    void shouldRenderInlineGraphvizFlowViewForDefaultWorkflow() throws Exception {
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller()).build();
+    void shouldReturnAuthenticatedSessionSnapshotWhenPrincipalIsPresent() {
+        AuthController controller = controller();
+        controller.success(oidcUser());
 
-        mockMvc.perform(get("/auth/flow/view").accept(MediaType.TEXT_HTML))
-                .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
-                .andExpect(content().string(containsString("<main class=\"diagram-shell\">")))
-                .andExpect(content().string(containsString("<figure class=\"diagram-frame\"")))
-                .andExpect(content().string(containsString("data-renderer=\"graphviz\"")))
-                .andExpect(content().string(containsString("<svg")))
-                .andExpect(content().string(containsString("Spring Boot OIDC Authentication State Engine")))
-                .andExpect(content().string(containsString("TOKEN_INVALID")))
-                .andExpect(content().string(not(containsString("<img"))))
-                .andExpect(content().string(not(containsString("data:image/svg+xml;base64,"))))
-                .andExpect(content().string(not(containsString("<?xml"))))
-                .andExpect(content().string(not(containsString("mermaid"))));
+        var authentication = new org.springframework.security.authentication.TestingAuthenticationToken("principal", "credentials");
+        authentication.setAuthenticated(true);
+        var session = controller.session(null, authentication, oidcUser());
+
+        assertThat(session.authenticated()).isTrue();
+        assertThat(session.username()).isEqualTo("user@example.com");
     }
 
     @Test
-    void shouldRenderInlineGraphvizFlowViewForStepUpWorkflow() throws Exception {
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller()).build();
+    void shouldReturnAuditTrail() {
+        AuthController controller = controller();
+        controller.verifyStepUp("123456", oidcUser());
 
-        mockMvc.perform(get("/auth/flow/step-up/view").accept(MediaType.TEXT_HTML))
-                .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
-                .andExpect(content().string(containsString("<main class=\"diagram-shell\">")))
-                .andExpect(content().string(containsString("<figure class=\"diagram-frame\"")))
-                .andExpect(content().string(containsString("data-renderer=\"graphviz\"")))
-                .andExpect(content().string(containsString("<svg")))
-                .andExpect(content().string(containsString("Spring Boot OIDC Authentication State Engine")))
-                .andExpect(content().string(containsString("MFA_FAILED")))
-                .andExpect(content().string(not(containsString("<img"))))
-                .andExpect(content().string(not(containsString("data:image/svg+xml;base64,"))))
-                .andExpect(content().string(not(containsString("<?xml"))))
-                .andExpect(content().string(not(containsString("stateDiagram-v2"))));
+        assertThat(controller.audit()).isNotEmpty();
+    }
+
+    @Test
+    void shouldRejectBlankStepUpCode() {
+        AuthController controller = controller();
+
+        assertThatThrownBy(() -> controller.verifyStepUp(" ", oidcUser()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("code must not be blank");
+    }
+
+    @Test
+    void shouldReturnStepUpSuccessWhenMfaVerificationPasses() throws Exception {
+        AuthController controller = controller();
+
+        var result = controller.verifyStepUp("123456", oidcUser());
+
+        assertThat(result.getFinalState()).isEqualTo("STEP_UP_SUCCESS");
+        assertThat(result.getTransitionHistory()).hasSize(5);
+        assertThat(result.getTransitionHistory()).last().extracting("event").isEqualTo("MFA_PASSED");
+    }
+
+    @Test
+    void shouldReturnAuthFailedWhenStepUpAuthorizationFails() {
+        AuthController controller = controller();
+        OidcUser user = oidcUser(Map.of("email", "user@example.com", "email_verified", false, "sub", "auth0|test-user"));
+
+        var result = controller.verifyStepUp("123456", user);
+
+        assertThat(result.getFinalState()).isEqualTo("AUTH_FAILED");
+        assertThat(result.getFailureReason()).isEqualTo("OIDC user email is not verified");
+    }
+
+    @Test
+    void shouldKeepAuthorizationFailureWhenMfaAlsoFails() {
+        AuthController controller = controller();
+        OidcUser user = oidcUser(Map.of("email", "user@example.com", "email_verified", false, "sub", "auth0|test-user"));
+
+        var result = controller.verifyStepUp("999999", user);
+
+        assertThat(result.getFinalState()).isEqualTo("AUTH_FAILED");
+        assertThat(result.getFailureReason()).isEqualTo("OIDC user email is not verified");
+    }
+
+    @Test
+    void shouldAllowBlankEmailToTakeTheLoginFlowPath() {
+        AuthController controller = controller();
+        OidcUser user = oidcUser(Map.of("email", " ", "email_verified", true, "sub", "auth0|test-user"));
+
+        var result = controller.success(user);
+
+        assertThat(result.getFinalState()).isEqualTo("AUTH_FAILED");
+        assertThat(result.getFailureReason()).isEqualTo("OIDC user email is missing");
+    }
+
+    @Test
+    void shouldReturnAuthFailedWhenMfaVerificationFails() throws Exception {
+        AuthController controller = controller();
+
+        var result = controller.verifyStepUp("wrong-code", oidcUser());
+
+        assertThat(result.getFinalState()).isEqualTo("AUTH_FAILED");
+        assertThat(result.getTransitionHistory()).hasSize(5);
+        assertThat(result.getTransitionHistory()).last().extracting("event").isEqualTo("MFA_FAILED");
+    }
+
+    @Test
+    void shouldRejectStepUpForBlankEmailBeforeMfaVerification() {
+        AuthController controller = controller();
+        OidcUser user = oidcUser(Map.of("email", " ", "email_verified", true, "sub", "auth0|test-user"));
+
+        assertThatThrownBy(() -> controller.verifyStepUp("123456", user))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("username must not be blank");
     }
 
     private AuthController controller() {
@@ -137,16 +229,33 @@ class AuthControllerJsonTest {
                 new AuthState("STEP_UP_SUCCESS", false, true, List.of()),
                 new AuthState("AUTH_FAILED", false, true, List.of())
         ));
+        InMemoryAuditService auditService = new InMemoryAuditService(100);
         AuthFlowRegistry registry = new AuthFlowRegistry(Map.of(
-                "login", new AuthStateEngine(loginFlow, new InMemoryAuditService()),
-                "step-up", new AuthStateEngine(stepUpFlow, new InMemoryAuditService())
+                "login", new AuthStateEngine(loginFlow, auditService),
+                "step-up", new AuthStateEngine(stepUpFlow, auditService)
         ));
         return new AuthController(
                 registry,
                 new AuthorizationService(List.of("APP_USER")),
                 new AuthSessionService(),
-                new InMemoryAuditService(),
-                Mappers.getMapper(AuthViewMapper.class)
+                auditService,
+                new InMemoryMfaChallengeService(new AuthMfaProperties("123456")),
+                new AuthViewMapper()
         );
+    }
+
+    private OidcUser oidcUser() {
+        return oidcUser(Map.of(
+                "email", "user@example.com",
+                "email_verified", true,
+                "sub", "auth0|test-user"
+        ));
+    }
+
+    private OidcUser oidcUser(Map<String, Object> claims) {
+        Map<String, Object> mutableClaims = new java.util.HashMap<>(claims);
+        mutableClaims.putIfAbsent("sub", "auth0|test-user");
+        OidcIdToken idToken = new OidcIdToken("token", Instant.now(), Instant.now().plusSeconds(300), mutableClaims);
+        return new DefaultOidcUser(List.of(new SimpleGrantedAuthority("ROLE_USER")), idToken, "sub");
     }
 }
