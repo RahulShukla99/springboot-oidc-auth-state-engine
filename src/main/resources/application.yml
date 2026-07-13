@@ -1,10 +1,26 @@
 server:
   port: 8080
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
 auth:
   flows:
     login: classpath:auth-flow.xml
     step-up: classpath:step-up-auth-flow.xml
+  logout:
+    post-logout-redirect-uri: ${AUTH0_POST_LOGOUT_REDIRECT_URI:http://localhost:8080/}
+  jwt:
+    allowed-clock-skew-seconds: ${AUTH0_JWT_ALLOWED_CLOCK_SKEW_SECONDS:60}
+  mfa:
+    challenge-code: ${AUTH_MFA_CHALLENGE_CODE:123456}
   allowed-groups: ${AUTH_ALLOWED_GROUPS:APP_USER,APP_ADMIN}
   audit:
     max-records: ${AUTH_AUDIT_MAX_RECORDS:100}

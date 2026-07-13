@@ -9,20 +9,19 @@ import com.rahulshukla.authengine.model.AuthState;
 import com.rahulshukla.authengine.service.AuthSessionService;
 import com.rahulshukla.authengine.service.AuthorizationDecision;
 import com.rahulshukla.authengine.service.AuthorizationService;
+import com.rahulshukla.authengine.service.MfaChallengeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
-import org.springframework.util.StreamUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -38,13 +37,13 @@ import java.util.Optional;
 @Slf4j
 public class AuthController {
     private static final String DEFAULT_FLOW = "login";
-    private static final String OIDC_POST_LOGIN_FLOW = "oidc-post-login-auth-flow";
-    private static final String STEP_UP_MFA_FLOW = "step-up-mfa-flow";
+    private static final String STEP_UP_FLOW = "step-up";
 
     private final AuthFlowRegistry flowRegistry;
     private final AuthorizationService authorizationService;
     private final AuthSessionService sessionService;
     private final InMemoryAuditService auditService;
+    private final MfaChallengeService mfaChallengeService;
     private final AuthViewMapper viewMapper;
 
     /**
@@ -97,19 +96,27 @@ public class AuthController {
     }
 
     /**
+     * Verifies the step-up MFA challenge and executes the step-up workflow.
+     */
+    @PostMapping(value = "/auth/step-up/verify", produces = MediaType.APPLICATION_JSON_VALUE)
+    public AuthSessionContext verifyStepUp(@RequestParam String code, @AuthenticationPrincipal OidcUser user) {
+        if (isBlank(code)) {
+            throw new IllegalArgumentException("code must not be blank");
+        }
+        AuthorizationDecision decision = authorizationService.authorize(user);
+        String username = username(user);
+        log.info("auth step-up verify requested username={}", username);
+        return isBlank(username)
+                ? executeNewStepUpFlow(user, code, decision)
+                : sessionService.findOrCreateCompletedSession(STEP_UP_FLOW, username, () -> executeNewStepUpFlow(user, code, decision));
+    }
+
+    /**
      * Returns the default workflow definition as JSON.
      */
     @GetMapping(value = "/auth/flow", produces = MediaType.APPLICATION_JSON_VALUE)
     public FlowResponse flow() {
         return flow(DEFAULT_FLOW);
-    }
-
-    /**
-     * Returns the default workflow definition as browser-friendly HTML.
-     */
-    @GetMapping(value = "/auth/flow/view", produces = MediaType.TEXT_HTML_VALUE)
-    public String flowView() {
-        return flowView(DEFAULT_FLOW);
     }
 
     /**
@@ -120,16 +127,6 @@ public class AuthController {
         AuthFlow authFlow = flowRegistry.getRequiredEngine(flowName).flow();
         log.debug("flow definition requested flow={} stateCount={}", flowName, authFlow.states().size());
         return viewMapper.toFlowResponse(authFlow);
-    }
-
-    /**
-     * Returns the requested workflow definition as browser-friendly HTML.
-     */
-    @GetMapping(value = "/auth/flow/{flowName}/view", produces = MediaType.TEXT_HTML_VALUE)
-    public String flowView(@PathVariable String flowName) {
-        AuthFlow authFlow = flowRegistry.getRequiredEngine(flowName).flow();
-        log.debug("flow html view requested flow={} stateCount={}", flowName, authFlow.states().size());
-        return renderFlowHtml(viewMapper.toFlowResponse(authFlow));
     }
 
     /**
@@ -152,6 +149,23 @@ public class AuthController {
         return result;
     }
 
+    private AuthSessionContext executeNewStepUpFlow(OidcUser user, String code, AuthorizationDecision decision) {
+        AuthSessionContext context = buildContext(user);
+        if (!decision.authorized()) {
+            context.setFailureReason(decision.reason());
+        }
+        String username = context.getUsername();
+        mfaChallengeService.issueChallenge(username);
+        context.setMfaPassed(mfaChallengeService.verifyChallenge(username, code));
+        if (!context.isMfaPassed() && context.getFailureReason() == null) {
+            context.setFailureReason("MFA challenge failed");
+        }
+        log.info("executing workflow flow={} username={} authorized={} mfaPassed={}", STEP_UP_FLOW, username, decision.authorized(), context.isMfaPassed());
+        AuthSessionContext result = flowRegistry.getRequiredEngine(STEP_UP_FLOW).executeLoginFlow(context);
+        log.info("workflow completed flow={} username={} finalState={}", STEP_UP_FLOW, result.getUsername(), result.getFinalState());
+        return result;
+    }
+
     private AuthSessionContext buildContext(OidcUser user) {
         AuthSessionContext context = new AuthSessionContext();
         if (user != null) {
@@ -163,137 +177,6 @@ public class AuthController {
         return context;
     }
 
-    private String renderFlowHtml(FlowResponse flow) {
-        return """
-                <!doctype html>
-                <html lang="en">
-                <head>
-                  <meta charset="utf-8">
-                  <meta name="viewport" content="width=device-width, initial-scale=1">
-                  <title>%s</title>
-                  <style>
-                    :root { color: #101828; font-family: Arial, sans-serif; }
-                    * { box-sizing: border-box; }
-                    body {
-                      margin: 0;
-                      background: #ffffff;
-                      color: #101828;
-                    }
-                    .diagram-shell {
-                      min-height: 100vh;
-                      display: flex;
-                      align-items: flex-start;
-                      justify-content: center;
-                      padding: 12px;
-                    }
-                    .diagram-frame {
-                      margin: 0;
-                      width: min(100%%, 920px);
-                    }
-                    .diagram-frame svg {
-                      display: block;
-                      width: 100%%;
-                      height: auto;
-                    }
-                    .sr-only {
-                      position: absolute;
-                      width: 1px;
-                      height: 1px;
-                      padding: 0;
-                      margin: -1px;
-                      overflow: hidden;
-                      clip: rect(0, 0, 0, 0);
-                      white-space: nowrap;
-                      border: 0;
-                    }
-                  </style>
-                </head>
-                <body>
-                  <main class="diagram-shell">
-                    <figure class="diagram-frame" data-renderer="%s">
-                      <figcaption class="sr-only">%s</figcaption>
-                      %s
-                    </figure>
-                  </main>
-                </body>
-                </html>
-                """.formatted(
-                flow.flowName(),
-                rendererName(flow),
-                accessibleSummary(flow),
-                renderDiagramMarkup(flow)
-        );
-    }
-
-    private String renderDiagramMarkup(FlowResponse flow) {
-        String graphvizSvgResource = graphvizSvgResource(flow.flowName());
-        if (graphvizSvgResource != null) {
-            readClasspathResource(graphvizDotResource(flow.flowName()));
-            return inlineSvgMarkup(readClasspathResource(graphvizSvgResource));
-        }
-        return "<pre>" + escapeHtml(toMermaid(flow)) + "</pre>";
-    }
-
-    private String rendererName(FlowResponse flow) {
-        return graphvizSvgResource(flow.flowName()) != null ? "graphviz" : "text";
-    }
-
-    private String accessibleSummary(FlowResponse flow) {
-        return flow.flowName()
-                + " diagram. Initial state " + flow.initialState()
-                + ". Final states " + String.join(", ", flow.finalStates()) + ".";
-    }
-
-    private String graphvizSvgResource(String flowName) {
-        return switch (flowName) {
-            case OIDC_POST_LOGIN_FLOW -> "diagrams/oidc-post-login-auth-flow.svg";
-            case STEP_UP_MFA_FLOW -> "diagrams/step-up-mfa-flow.svg";
-            default -> null;
-        };
-    }
-
-    private String graphvizDotResource(String flowName) {
-        return switch (flowName) {
-            case OIDC_POST_LOGIN_FLOW -> "diagrams/oidc-post-login-auth-flow.dot";
-            case STEP_UP_MFA_FLOW -> "diagrams/step-up-mfa-flow.dot";
-            default -> throw new IllegalArgumentException("No Graphviz source configured for flow " + flowName);
-        };
-    }
-
-    private String toMermaid(FlowResponse flow) {
-        StringBuilder diagram = new StringBuilder("stateDiagram-v2\n");
-        diagram.append("    [*] --> ").append(flow.initialState()).append('\n');
-        flow.transitions().forEach(transition -> diagram.append("    ")
-                .append(transition.fromState())
-                .append(" --> ")
-                .append(transition.toState())
-                .append(": ")
-                .append(transition.event())
-                .append('\n'));
-        flow.finalStates().forEach(state -> diagram.append("    ").append(state).append(" --> [*]\n"));
-        return diagram.toString();
-    }
-
-    private String inlineSvgMarkup(String svg) {
-        String normalizedSvg = svg.replaceFirst("^\\s*<\\?xml[^>]*>\\s*", "");
-        return normalizedSvg.replaceFirst("<svg\\b", "<svg class=\"graphviz-diagram\"");
-    }
-
-    private String escapeHtml(String value) {
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
-    }
-
-    private String readClasspathResource(String resourcePath) {
-        try (var inputStream = new ClassPathResource(resourcePath).getInputStream()) {
-            return StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8);
-        } catch (IOException exception) {
-            throw new IllegalStateException("Unable to render flow diagram from resource " + resourcePath, exception);
-        }
-    }
-
     private String username(OidcUser user) {
         return Optional.ofNullable(user).map(OidcUser::getEmail).orElse(null);
     }
@@ -302,25 +185,25 @@ public class AuthController {
         return value == null || value.isBlank();
     }
 
-    record HomeResponse(String message, String loginUrl) {
+    public record HomeResponse(String message, String loginUrl) {
     }
 
-    record SessionResponse(boolean authenticated,
-                           String username,
-                           String fullName,
-                           boolean emailVerified,
-                           Collection<?> authorities,
-                           String currentState,
-                           String finalState) {
+    public record SessionResponse(boolean authenticated,
+                                  String username,
+                                  String fullName,
+                                  boolean emailVerified,
+                                  Collection<?> authorities,
+                                  String currentState,
+                                  String finalState) {
     }
 
-    record FlowResponse(String flowName,
-                        String initialState,
-                        List<String> finalStates,
-                        List<AuthState> states,
-                        List<TransitionView> transitions) {
+    public record FlowResponse(String flowName,
+                               String initialState,
+                               List<String> finalStates,
+                               List<AuthState> states,
+                               List<TransitionView> transitions) {
     }
 
-    record TransitionView(String fromState, String event, String toState) {
+    public record TransitionView(String fromState, String event, String toState) {
     }
 }

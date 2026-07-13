@@ -15,7 +15,7 @@ class AuthStateEngineAuditTest {
 
     @Test
     void shouldPreserveExistingFailureReasonWhenTokenValidationFails() {
-        AuthStateEngine engine = new AuthStateEngine(fullFlow(), new InMemoryAuditService());
+        AuthStateEngine engine = new AuthStateEngine(fullFlow(), new InMemoryAuditService(100));
         AuthSessionContext context = new AuthSessionContext("corr-missing-email");
         context.setFailureReason("OIDC user email is missing");
 
@@ -27,7 +27,7 @@ class AuthStateEngineAuditTest {
 
     @Test
     void shouldAuditFailureOutcomeWhenAuthorizationFails() {
-        InMemoryAuditService auditService = new InMemoryAuditService();
+        InMemoryAuditService auditService = new InMemoryAuditService(100);
         AuthStateEngine engine = new AuthStateEngine(fullFlow(), auditService);
         AuthSessionContext context = new AuthSessionContext("corr-1");
         context.setUsername("user@example.com");

@@ -58,6 +58,16 @@ class AuthSessionServiceTest {
     }
 
     @Test
+    void shouldRejectNullUsernameForIdempotentSessionCreation() {
+        AuthSessionService service = new AuthSessionService();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        service.findOrCreateCompletedSession(null, AuthSessionContext::new))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("username must not be blank");
+    }
+
+    @Test
     void shouldKeepSessionsSeparatePerFlowForSameUser() {
         AuthSessionService service = new AuthSessionService();
 
@@ -68,5 +78,6 @@ class AuthSessionServiceTest {
         assertThat(stepUpSession.getCorrelationId()).isEqualTo("step-up-corr");
         assertThat(service.findByFlowAndUsername("login", "user@example.com")).contains(loginSession);
         assertThat(service.findByFlowAndUsername("step-up", "user@example.com")).contains(stepUpSession);
+        assertThat(service.findByUsername("user@example.com")).contains(loginSession);
     }
 }

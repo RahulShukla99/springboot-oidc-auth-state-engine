@@ -10,7 +10,7 @@ class InMemoryAuditServiceTest {
 
     @Test
     void shouldKeepOnlyConfiguredNumberOfRecentRecords() {
-        InMemoryAuditService service = new InMemoryAuditService(2);
+        InMemoryAuditService service = new InMemoryAuditService(new com.rahulshukla.authengine.config.AuthAuditProperties(2));
 
         service.record(record("corr-1"));
         service.record(record("corr-2"));
@@ -18,6 +18,13 @@ class InMemoryAuditServiceTest {
 
         assertThat(service.recentRecords()).extracting(AuthAuditRecord::correlationId)
                 .containsExactly("corr-2", "corr-3");
+    }
+
+    @Test
+    void shouldRejectNonPositiveConfiguredMaxRecords() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new InMemoryAuditService(new com.rahulshukla.authengine.config.AuthAuditProperties(0)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("auth.audit.max-records must be greater than zero");
     }
 
     private AuthAuditRecord record(String correlationId) {

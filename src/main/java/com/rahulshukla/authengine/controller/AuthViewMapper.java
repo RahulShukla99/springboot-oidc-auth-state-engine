@@ -4,20 +4,27 @@ import com.rahulshukla.authengine.model.AuthFlow;
 import com.rahulshukla.authengine.model.AuthSessionContext;
 import com.rahulshukla.authengine.model.AuthState;
 import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface AuthViewMapper {
 
-    @Mapping(target = "flowName", source = "name")
-    @Mapping(target = "initialState", expression = "java(authFlow.initialState().id())")
-    @Mapping(target = "finalStates", expression = "java(authFlow.finalStates().stream().map(AuthState::id).toList())")
-    @Mapping(target = "transitions", expression = "java(toTransitions(authFlow))")
-    AuthController.FlowResponse toFlowResponse(AuthFlow authFlow);
+    default AuthController.FlowResponse toFlowResponse(AuthFlow authFlow) {
+        if (authFlow == null) {
+            return null;
+        }
+        return new AuthController.FlowResponse(
+                authFlow.name(),
+                authFlow.initialState().id(),
+                authFlow.finalStates().stream().map(AuthState::id).toList(),
+                new ArrayList<>(authFlow.states()),
+                toTransitions(authFlow)
+        );
+    }
 
     default AuthController.SessionResponse toSessionResponse(Authentication authentication, OidcUser user, AuthSessionContext context) {
         return new AuthController.SessionResponse(

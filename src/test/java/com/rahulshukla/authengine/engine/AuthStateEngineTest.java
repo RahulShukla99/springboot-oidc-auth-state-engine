@@ -17,7 +17,7 @@ class AuthStateEngineTest {
 
     @Test
     void shouldExecuteValidTransition() {
-        AuthStateEngine engine = new AuthStateEngine(flow(), new InMemoryAuditService());
+        AuthStateEngine engine = new AuthStateEngine(flow(), new InMemoryAuditService(100));
 
         AuthState next = engine.transition("START", "LOGIN_REQUESTED");
 
@@ -26,7 +26,7 @@ class AuthStateEngineTest {
 
     @Test
     void shouldRejectInvalidEvent() {
-        AuthStateEngine engine = new AuthStateEngine(flow(), new InMemoryAuditService());
+        AuthStateEngine engine = new AuthStateEngine(flow(), new InMemoryAuditService(100));
 
         assertThatThrownBy(() -> engine.transition("START", "TOKEN_VALID"))
                 .isInstanceOf(AuthStateException.class)
@@ -35,7 +35,7 @@ class AuthStateEngineTest {
 
     @Test
     void shouldExecuteStepUpFlowEndToEndWhenMfaPasses() {
-        InMemoryAuditService auditService = new InMemoryAuditService();
+        InMemoryAuditService auditService = new InMemoryAuditService(100);
         AuthStateEngine engine = new AuthStateEngine(stepUpFlow(), auditService);
         AuthSessionContext context = new AuthSessionContext("corr-step-up");
         context.setUsername("user@example.com");
@@ -51,7 +51,7 @@ class AuthStateEngineTest {
 
     @Test
     void shouldExecuteStepUpFlowEndToEndWhenMfaFails() {
-        InMemoryAuditService auditService = new InMemoryAuditService();
+        InMemoryAuditService auditService = new InMemoryAuditService(100);
         AuthStateEngine engine = new AuthStateEngine(stepUpFlow(), auditService);
         AuthSessionContext context = new AuthSessionContext("corr-step-up-fail");
         context.setUsername("user@example.com");
@@ -63,6 +63,71 @@ class AuthStateEngineTest {
         assertThat(result.getFinalState()).isEqualTo("AUTH_FAILED");
         assertThat(result.getTransitionHistory()).extracting("event").contains("MFA_FAILED");
         assertThat(auditService.recentRecords()).extracting("event").contains("MFA_FAILED");
+    }
+
+    @Test
+    void shouldPreserveExistingFailureReasonWhenEmailIsNotVerified() {
+        InMemoryAuditService auditService = new InMemoryAuditService(100);
+        AuthStateEngine engine = new AuthStateEngine(stepUpFlow(), auditService);
+        AuthSessionContext context = new AuthSessionContext("corr-failure-reason");
+        context.setUsername("user@example.com");
+        context.setEmailVerified(false);
+        context.setFailureReason("manual review required");
+        context.setMfaPassed(false);
+
+        AuthSessionContext result = engine.executeLoginFlow(context);
+
+        assertThat(result.getFailureReason()).isEqualTo("manual review required");
+        assertThat(result.getFinalState()).isEqualTo("AUTH_FAILED");
+    }
+
+    @Test
+    void shouldRejectFlowExecutionWhenNoTransitionGuardMatches() {
+        AuthStateEngine engine = new AuthStateEngine(stepUpFlow(), new InMemoryAuditService(100), (flowName, event) -> TransitionRule.failure(context -> false));
+        AuthSessionContext context = new AuthSessionContext("corr-no-match");
+        context.setUsername("user@example.com");
+        context.setEmailVerified(true);
+
+        assertThatThrownBy(() -> engine.executeLoginFlow(context))
+                .isInstanceOf(AuthStateException.class)
+                .hasMessageContaining("No transition guard matched from state START");
+    }
+
+    @Test
+    void shouldRejectTransitionWhenTargetStateIsMissing() {
+        AuthFlow flow = new AuthFlow("broken-flow", List.of(
+                new AuthState("START", true, false, List.of(new AuthTransition("GO", "MISSING")))
+        ));
+        AuthStateEngine engine = new AuthStateEngine(flow, new InMemoryAuditService(100));
+
+        assertThatThrownBy(() -> engine.transition("START", "GO"))
+                .isInstanceOf(AuthStateException.class)
+                .hasMessageContaining("Target state does not exist: MISSING");
+    }
+
+    @Test
+    void shouldRejectTransitionWhenCurrentStateIsMissing() {
+        AuthStateEngine engine = new AuthStateEngine(flow(), new InMemoryAuditService(100));
+
+        assertThatThrownBy(() -> engine.transition("MISSING", "GO"))
+                .isInstanceOf(AuthStateException.class)
+                .hasMessageContaining("Current state does not exist: MISSING");
+    }
+
+    @Test
+    void shouldReturnImmediatelyWhenStartingFromFinalState() {
+        AuthFlow flow = new AuthFlow("final-only", List.of(
+                new AuthState("AUTH_SUCCESS", true, true, List.of())
+        ));
+        AuthStateEngine engine = new AuthStateEngine(flow, new InMemoryAuditService(100));
+        AuthSessionContext context = new AuthSessionContext("corr-final");
+        context.setUsername("user@example.com");
+
+        AuthSessionContext result = engine.executeLoginFlow(context);
+
+        assertThat(result.getCurrentState()).isEqualTo("AUTH_SUCCESS");
+        assertThat(result.getFinalState()).isNull();
+        assertThat(result.getTransitionHistory()).isEmpty();
     }
 
     private AuthFlow flow() {

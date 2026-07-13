@@ -83,9 +83,6 @@ public class AuthStateEngine {
         }
         while (true) {
             AuthState current = statesById.get(context.getCurrentState());
-            if (current == null) {
-                throw new AuthStateException("Current state does not exist: " + context.getCurrentState());
-            }
             if (current.finalState()) {
                 break;
             }

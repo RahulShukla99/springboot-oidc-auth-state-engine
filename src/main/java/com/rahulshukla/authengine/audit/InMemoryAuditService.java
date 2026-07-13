@@ -1,7 +1,8 @@
 package com.rahulshukla.authengine.audit;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import com.rahulshukla.authengine.config.AuthAuditProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayDeque;
@@ -14,11 +15,12 @@ public class InMemoryAuditService {
     private final int maxRecords;
     private final Deque<AuthAuditRecord> records = new ArrayDeque<>();
 
-    public InMemoryAuditService() {
-        this(100);
+    @Autowired
+    public InMemoryAuditService(AuthAuditProperties properties) {
+        this(properties.maxRecords());
     }
 
-    public InMemoryAuditService(@Value("${auth.audit.max-records:100}") int maxRecords) {
+    public InMemoryAuditService(int maxRecords) {
         if (maxRecords < 1) {
             throw new IllegalArgumentException("auth.audit.max-records must be greater than zero");
         }

@@ -17,7 +17,7 @@ class AuthFlowRegistryTest {
     @Test
     void shouldReturnNamedStateEngine() {
         AuthFlowRegistry registry = new AuthFlowRegistry(Map.of(
-                "login", new AuthStateEngine(flow("login-flow"), new InMemoryAuditService())
+                "login", new AuthStateEngine(flow("login-flow"), new InMemoryAuditService(100))
         ));
 
         AuthStateEngine engine = registry.getRequiredEngine("login");
@@ -28,7 +28,7 @@ class AuthFlowRegistryTest {
     @Test
     void shouldRejectUnknownFlowName() {
         AuthFlowRegistry registry = new AuthFlowRegistry(Map.of(
-                "login", new AuthStateEngine(flow("login-flow"), new InMemoryAuditService())
+                "login", new AuthStateEngine(flow("login-flow"), new InMemoryAuditService(100))
         ));
 
         assertThatThrownBy(() -> registry.getRequiredEngine("step-up"))
