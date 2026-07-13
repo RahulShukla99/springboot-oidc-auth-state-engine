@@ -3,17 +3,17 @@ package com.rahulshukla.authengine.controller;
 import com.rahulshukla.authengine.model.AuthFlow;
 import com.rahulshukla.authengine.model.AuthSessionContext;
 import com.rahulshukla.authengine.model.AuthState;
+import org.mapstruct.Mapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@Component
-public class AuthViewMapper {
+@Mapper(componentModel = "spring")
+public interface AuthViewMapper {
 
-    public AuthController.FlowResponse toFlowResponse(AuthFlow authFlow) {
+    default AuthController.FlowResponse toFlowResponse(AuthFlow authFlow) {
         if (authFlow == null) {
             return null;
         }
@@ -26,7 +26,7 @@ public class AuthViewMapper {
         );
     }
 
-    public AuthController.SessionResponse toSessionResponse(Authentication authentication, OidcUser user, AuthSessionContext context) {
+    default AuthController.SessionResponse toSessionResponse(Authentication authentication, OidcUser user, AuthSessionContext context) {
         return new AuthController.SessionResponse(
                 authentication != null && authentication.isAuthenticated(),
                 context != null && context.getUsername() != null ? context.getUsername() : username(user),
@@ -38,22 +38,22 @@ public class AuthViewMapper {
         );
     }
 
-    public List<AuthController.TransitionView> toTransitions(AuthFlow authFlow) {
+    default List<AuthController.TransitionView> toTransitions(AuthFlow authFlow) {
         return authFlow.states().stream()
                 .flatMap(state -> state.transitions().stream()
                         .map(transition -> new AuthController.TransitionView(state.id(), transition.event(), transition.target())))
                 .toList();
     }
 
-    public String username(OidcUser user) {
+    default String username(OidcUser user) {
         return user == null ? null : user.getEmail();
     }
 
-    public String fullName(OidcUser user) {
+    default String fullName(OidcUser user) {
         return user == null ? null : user.getFullName();
     }
 
-    public boolean emailVerified(OidcUser user) {
+    default boolean emailVerified(OidcUser user) {
         return user != null && !Boolean.FALSE.equals(user.getEmailVerified());
     }
 }

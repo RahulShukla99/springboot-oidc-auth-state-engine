@@ -12,6 +12,7 @@ import com.rahulshukla.authengine.service.AuthorizationService;
 import com.rahulshukla.authengine.service.FlowDiagramService;
 import com.rahulshukla.authengine.service.InMemoryMfaChallengeService;
 import org.junit.jupiter.api.Test;
+import org.mapstruct.factory.Mappers;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -96,6 +97,6 @@ class AuthFlowViewControllerTest {
                 "login", new AuthStateEngine(loginFlow, new InMemoryAuditService(100)),
                 "step-up", new AuthStateEngine(stepUpFlow, new InMemoryAuditService(100))
         ));
-        return new AuthFlowViewController(registry, new AuthViewMapper(), new FlowDiagramService());
+        return new AuthFlowViewController(registry, Mappers.getMapper(AuthViewMapper.class), new FlowDiagramService());
     }
 }

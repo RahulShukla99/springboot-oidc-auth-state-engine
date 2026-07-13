@@ -10,7 +10,9 @@ import com.rahulshukla.authengine.config.AuthMfaProperties;
 import com.rahulshukla.authengine.service.AuthSessionService;
 import com.rahulshukla.authengine.service.AuthorizationService;
 import com.rahulshukla.authengine.service.InMemoryMfaChallengeService;
+import com.rahulshukla.authengine.service.MfaChallengeService;
 import org.junit.jupiter.api.Test;
+import org.mapstruct.factory.Mappers;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
@@ -202,7 +204,31 @@ class AuthControllerJsonTest {
                 .hasMessage("username must not be blank");
     }
 
+    @Test
+    void shouldExecuteStepUpFlowWhenUsernameIsBlank() {
+        AuthController controller = controller(new MfaChallengeService() {
+            @Override
+            public String issueChallenge(String username) {
+                return "ignored";
+            }
+
+            @Override
+            public boolean verifyChallenge(String username, String code) {
+                return true;
+            }
+        });
+        OidcUser user = oidcUser(Map.of("email", " ", "email_verified", true, "sub", "auth0|test-user"));
+
+        var result = controller.verifyStepUp("123456", user);
+
+        assertThat(result.getFinalState()).isEqualTo("STEP_UP_SUCCESS");
+    }
+
     private AuthController controller() {
+        return controller(new InMemoryMfaChallengeService(new AuthMfaProperties("123456")));
+    }
+
+    private AuthController controller(MfaChallengeService mfaChallengeService) {
         AuthFlow loginFlow = new AuthFlow("oidc-post-login-auth-flow", List.of(
                 new AuthState("START", true, false, List.of(new AuthTransition("LOGIN_REQUESTED", "REDIRECT_TO_IDP"))),
                 new AuthState("REDIRECT_TO_IDP", false, false, List.of(new AuthTransition("OIDC_CALLBACK_RECEIVED", "VALIDATE_TOKEN"))),
@@ -239,8 +265,8 @@ class AuthControllerJsonTest {
                 new AuthorizationService(List.of("APP_USER")),
                 new AuthSessionService(),
                 auditService,
-                new InMemoryMfaChallengeService(new AuthMfaProperties("123456")),
-                new AuthViewMapper()
+                mfaChallengeService,
+                Mappers.getMapper(AuthViewMapper.class)
         );
     }
 

@@ -185,6 +185,15 @@ class XmlAuthFlowLoaderTest {
     }
 
     @Test
+    void shouldTreatNullTextAsBlankWhenValidatingPrivateHelper() throws Exception {
+        XmlAuthFlowLoader loader = new XmlAuthFlowLoader("classpath:valid-auth-flow.xml");
+        Method isBlank = XmlAuthFlowLoader.class.getDeclaredMethod("isBlank", String.class);
+        isBlank.setAccessible(true);
+
+        assertThat(isBlank.invoke(loader, new Object[]{null})).isEqualTo(true);
+    }
+
+    @Test
     void shouldRejectDuplicateTransitionEvent() throws IOException {
         assertThatThrownBy(() -> loadXml("""
                 <authFlow name=\"duplicate-transition\">

@@ -5,6 +5,7 @@ import com.rahulshukla.authengine.model.AuthSessionContext;
 import com.rahulshukla.authengine.model.AuthState;
 import com.rahulshukla.authengine.model.AuthTransition;
 import org.junit.jupiter.api.Test;
+import org.mapstruct.factory.Mappers;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -19,7 +20,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AuthViewMapperTest {
-    private final AuthViewMapper mapper = new AuthViewMapper();
+    private final AuthViewMapper mapper = Mappers.getMapper(AuthViewMapper.class);
 
     @Test
     void shouldMapFlowResponseFromAuthFlow() {
