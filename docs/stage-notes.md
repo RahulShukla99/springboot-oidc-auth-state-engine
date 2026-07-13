@@ -19,3 +19,13 @@
 - Concurrency decision: none; only static resource markup changed.
 - Known limitation: the Graphviz `.dot` files and the checked-in SVGs can still drift if one is updated without regenerating the other.
 - Next improvement: add a repeatable regeneration step so the `.dot` definitions stay aligned with the browser-facing SVG artifacts.
+
+## 2026-07-13 Generic auth-state interpreter
+
+- Implemented behavior: the engine now walks transitions generically from the current state and resolves the next event through flow-specific guard rules instead of a hardcoded event chain.
+- Assumption: both XML flows should execute through the same interpreter path, with business differences expressed as guards rather than separate orchestration code.
+- Business rules covered: the login flow still reaches `AUTH_SUCCESS` / `AUTH_FAILED`, while the step-up flow now reaches `STEP_UP_SUCCESS` / `AUTH_FAILED` end-to-end, including `MFA_PASSED` and `MFA_FAILED`.
+- Edge cases: failure reasons are preserved when already present, and the engine fails fast when no transition guard matches a state.
+- Concurrency decision: none yet; the interpreter is stateless per execution and relies on the existing in-memory audit service.
+- Known limitation: session state, audit trail, and all flow execution data are still JVM-local.
+- Next improvement: add the MFA challenge/verify endpoint and then expand security/logout/token handling.

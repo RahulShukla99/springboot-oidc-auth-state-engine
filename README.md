@@ -1,19 +1,19 @@
 # Spring Boot OIDC Authentication State Engine
 
-High-level goal: externalize the post-login authentication journey into a deterministic XML workflow so Auth0 handles identity and the application handles authorization, session state, audit trails, and browser-visible flow inspection.
+Spring Boot 3.5 / Java 21 OIDC orchestration service for Auth0 logins, step-up MFA flows, audit trails, and browser-visible state-machine inspection.
 
 ## Project summary
-Built a Spring Boot 3.5 / Java 21 authentication orchestration service for Auth0/OIDC logins with JSON APIs and browser flow views.
+The application externalizes the authentication journey into XML-defined workflows while keeping identity in Auth0 and handling authorization, session state, audit logging, and diagram rendering locally.
 
 ### Highlights
-- XML-driven login and step-up/MFA flows
-- Auth session tracking with per-user idempotency
-- Authorization based on OIDC claims and groups/roles
-- Structured logs on critical workflow paths
-- Bounded audit trail with correlation IDs
+- XML-driven `login` and `step-up` flows
+- Generic state-engine interpreter with guard-based transitions
+- Step-up/MFA flow execution through the same engine path
+- Per-user session tracking with idempotent completion
+- Authorization based on OIDC claims and allowed groups/roles
+- Structured audit trail with correlation IDs
 - JSON endpoints for flow, session, and audit inspection
-- Browser views for the state engine diagrams
-- Docker, React UI, and AWS-ready deployment model
+- Browser flow diagrams rendered from checked-in SVG resources
 
 ### Core flows
 - `login`
@@ -45,6 +45,11 @@ mvn test
 
 ### Postman
 - `docs/postman/springboot-oidc-auth-state-engine.postman_collection.json`
+
+### Roadmap / Known limitations
+- Session cache and audit trail are in-memory only and reset on restart.
+- Federated logout, clock-skew handling, refresh-token persistence, actuator/OpenAPI exposure, and controller split are still pending.
+- Graphviz `.dot` and generated SVG assets are checked in together and need manual regeneration when the diagrams change.
 
 ### License
 - MIT License (`LICENSE`)
