@@ -60,3 +60,13 @@
 - Concurrency decision: unchanged; audit writes remain synchronized around the bounded deque.
 - Known limitation: browser diagram sizing remains static presentation data rather than property-driven configuration.
 - Next improvement: if needed, extract the remaining presentation constants into a dedicated view-properties object.
+
+## 2026-07-13 Step-up rate limiting
+
+- Implemented behavior: step-up MFA verification now enforces a rolling per-username limit before issuing a challenge, returning HTTP 429 with `Retry-After` when the sixth attempt arrives inside the configured window.
+- Assumption: the rate-limit window is defined by properties and driven by an injectable `Clock` so tests stay deterministic.
+- Business rules covered: the limiter keeps counts per username, allows the sixth attempt only after the window naturally expires, and preserves the existing step-up success/failure workflow once allowed.
+- Edge cases: rejected attempts do not reset the rolling window, blank usernames bypass the limiter, and the handler still records a distinct `RATE_LIMITED` audit outcome.
+- Concurrency decision: used `ConcurrentHashMap.compute(...)` around each username bucket so concurrent requests cannot overbook the same MFA window.
+- Known limitation: the limiter is JVM-local; multi-instance deployments need a shared rate-limit store.
+- Next improvement: move the in-memory rate-limit state to a shared backing store if the application scales beyond one node.

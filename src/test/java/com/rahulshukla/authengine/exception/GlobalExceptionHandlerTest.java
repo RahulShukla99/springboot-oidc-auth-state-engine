@@ -2,6 +2,7 @@ package com.rahulshukla.authengine.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
 
@@ -53,5 +54,19 @@ class GlobalExceptionHandlerTest {
         assertThat(error.error()).isEqualTo("Bad Request");
         assertThat(error.message()).isEqualTo("message");
         assertThat(error.path()).isEqualTo("/path");
+    }
+
+    @Test
+    void shouldMapRateLimitExceptionsToTooManyRequests() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/auth/step-up/verify");
+
+        var response = handler.handleRateLimit(new StepUpRateLimitExceededException(37), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("37");
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().status()).isEqualTo(429);
+        assertThat(response.getBody().message()).contains("rate limit");
+        assertThat(response.getBody().path()).isEqualTo("/auth/step-up/verify");
     }
 }

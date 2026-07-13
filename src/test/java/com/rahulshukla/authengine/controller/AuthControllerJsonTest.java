@@ -1,5 +1,6 @@
 package com.rahulshukla.authengine.controller;
 
+import com.rahulshukla.authengine.audit.AuthAuditRecord;
 import com.rahulshukla.authengine.audit.InMemoryAuditService;
 import com.rahulshukla.authengine.engine.AuthFlowRegistry;
 import com.rahulshukla.authengine.engine.AuthStateEngine;
@@ -11,6 +12,7 @@ import com.rahulshukla.authengine.service.AuthSessionService;
 import com.rahulshukla.authengine.service.AuthorizationService;
 import com.rahulshukla.authengine.service.InMemoryMfaChallengeService;
 import com.rahulshukla.authengine.service.MfaChallengeService;
+import com.rahulshukla.authengine.service.StepUpRateLimiter;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 import org.springframework.http.MediaType;
@@ -123,6 +125,19 @@ class AuthControllerJsonTest {
     }
 
     @Test
+    void shouldReturnStoredSessionSnapshotWhenFlowAndUsernameMatch() {
+        AuthController controller = controller();
+        controller.success(oidcUser());
+
+        var authentication = new org.springframework.security.authentication.TestingAuthenticationToken("principal", "credentials");
+        authentication.setAuthenticated(true);
+        var session = controller.session("login", authentication, oidcUser());
+
+        assertThat(session.authenticated()).isTrue();
+        assertThat(session.currentState()).isEqualTo("AUTH_SUCCESS");
+    }
+
+    @Test
     void shouldReturnAuditTrail() {
         AuthController controller = controller();
         controller.verifyStepUp("123456", oidcUser());
@@ -205,8 +220,30 @@ class AuthControllerJsonTest {
     }
 
     @Test
+    void shouldRejectStepUpWhenRateLimitIsExceededBeforeMfaVerification() {
+        AuthController controller = controller(new RejectingRateLimit(), new MfaChallengeService() {
+            @Override
+            public String issueChallenge(String username) {
+                return "ignored";
+            }
+
+            @Override
+            public boolean verifyChallenge(String username, String code) {
+                throw new AssertionError("MFA should not be invoked when rate limited");
+            }
+        });
+        OidcUser user = oidcUser();
+
+        assertThatThrownBy(() -> controller.verifyStepUp("123456", user))
+                .isInstanceOf(com.rahulshukla.authengine.exception.StepUpRateLimitExceededException.class);
+
+        assertThat(controller.audit()).isNotEmpty();
+        assertThat(controller.audit()).last().extracting(AuthAuditRecord::outcome).isEqualTo("RATE_LIMITED");
+    }
+
+    @Test
     void shouldExecuteStepUpFlowWhenUsernameIsBlank() {
-        AuthController controller = controller(new MfaChallengeService() {
+        AuthController controller = controller(new AcceptingRateLimit(), new MfaChallengeService() {
             @Override
             public String issueChallenge(String username) {
                 return "ignored";
@@ -225,10 +262,14 @@ class AuthControllerJsonTest {
     }
 
     private AuthController controller() {
-        return controller(new InMemoryMfaChallengeService(new AuthMfaProperties("123456")));
+        return controller(new AcceptingRateLimit(), new InMemoryMfaChallengeService(new AuthMfaProperties("123456")));
     }
 
     private AuthController controller(MfaChallengeService mfaChallengeService) {
+        return controller(new AcceptingRateLimit(), mfaChallengeService);
+    }
+
+    private AuthController controller(StepUpRateLimiter rateLimiter, MfaChallengeService mfaChallengeService) {
         AuthFlow loginFlow = new AuthFlow("oidc-post-login-auth-flow", List.of(
                 new AuthState("START", true, false, List.of(new AuthTransition("LOGIN_REQUESTED", "REDIRECT_TO_IDP"))),
                 new AuthState("REDIRECT_TO_IDP", false, false, List.of(new AuthTransition("OIDC_CALLBACK_RECEIVED", "VALIDATE_TOKEN"))),
@@ -265,9 +306,23 @@ class AuthControllerJsonTest {
                 new AuthorizationService(List.of("APP_USER")),
                 new AuthSessionService(),
                 auditService,
+                rateLimiter,
                 mfaChallengeService,
                 Mappers.getMapper(AuthViewMapper.class)
         );
+    }
+
+    private static final class AcceptingRateLimit implements StepUpRateLimiter {
+        @Override
+        public void checkAllowed(String username) {
+        }
+    }
+
+    private static final class RejectingRateLimit implements StepUpRateLimiter {
+        @Override
+        public void checkAllowed(String username) {
+            throw new com.rahulshukla.authengine.exception.StepUpRateLimitExceededException(37);
+        }
     }
 
     private OidcUser oidcUser() {

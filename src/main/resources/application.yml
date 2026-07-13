@@ -21,6 +21,9 @@ auth:
     allowed-clock-skew-seconds: ${AUTH0_JWT_ALLOWED_CLOCK_SKEW_SECONDS:60}
   mfa:
     challenge-code: ${AUTH_MFA_CHALLENGE_CODE:123456}
+  step-up-rate-limit:
+    max-attempts: ${AUTH_STEP_UP_RATE_LIMIT_MAX_ATTEMPTS:5}
+    window: ${AUTH_STEP_UP_RATE_LIMIT_WINDOW:60s}
   allowed-groups: ${AUTH_ALLOWED_GROUPS:APP_USER,APP_ADMIN}
   audit:
     max-records: ${AUTH_AUDIT_MAX_RECORDS:100}
