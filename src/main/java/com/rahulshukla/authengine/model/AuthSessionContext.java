@@ -26,6 +26,7 @@ public class AuthSessionContext {
     private String currentState;
     private String finalState;
     private String failureReason;
+    private boolean mfaPassed;
     @Setter(AccessLevel.NONE)
     private final List<TransitionHistoryEntry> transitionHistory = new ArrayList<>();
 
