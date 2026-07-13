@@ -39,6 +39,9 @@ auth:
     allowed-clock-skew-seconds: 60
   mfa:
     challenge-code: 123456
+  step-up-rate-limit:
+    max-attempts: 5
+    window: 60s
   allowed-groups: APP_USER,APP_ADMIN
   audit:
     max-records: 100

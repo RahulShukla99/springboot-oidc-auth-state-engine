@@ -7,9 +7,11 @@ import com.rahulshukla.authengine.model.AuthFlow;
 import com.rahulshukla.authengine.model.AuthSessionContext;
 import com.rahulshukla.authengine.model.AuthState;
 import com.rahulshukla.authengine.service.AuthSessionService;
+import com.rahulshukla.authengine.exception.StepUpRateLimitExceededException;
 import com.rahulshukla.authengine.service.AuthorizationDecision;
 import com.rahulshukla.authengine.service.AuthorizationService;
 import com.rahulshukla.authengine.service.MfaChallengeService;
+import com.rahulshukla.authengine.service.StepUpRateLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -22,6 +24,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +46,7 @@ public class AuthController {
     private final AuthorizationService authorizationService;
     private final AuthSessionService sessionService;
     private final InMemoryAuditService auditService;
+    private final StepUpRateLimiter stepUpRateLimiter;
     private final MfaChallengeService mfaChallengeService;
     private final AuthViewMapper viewMapper;
 
@@ -155,6 +159,22 @@ public class AuthController {
             context.setFailureReason(decision.reason());
         }
         String username = context.getUsername();
+        if (!isBlank(username)) {
+            try {
+                stepUpRateLimiter.checkAllowed(username);
+            } catch (StepUpRateLimitExceededException ex) {
+                auditService.record(new AuthAuditRecord(
+                        context.getCorrelationId(),
+                        username,
+                        "REQUIRE_MFA",
+                        "RATE_LIMITED",
+                        "REQUIRE_MFA",
+                        Instant.now(),
+                        "RATE_LIMITED"
+                ));
+                throw ex;
+            }
+        }
         mfaChallengeService.issueChallenge(username);
         context.setMfaPassed(mfaChallengeService.verifyChallenge(username, code));
         if (!context.isMfaPassed() && context.getFailureReason() == null) {

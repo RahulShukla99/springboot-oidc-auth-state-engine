@@ -44,6 +44,8 @@ The application externalizes the authentication journey into XML-defined workflo
 - `auth.jwt.allowed-clock-skew-seconds`
 - `auth.logout.post-logout-redirect-uri`
 - `auth.mfa.challenge-code`
+- `auth.step-up-rate-limit.max-attempts`
+- `auth.step-up-rate-limit.window`
 - `auth.audit.max-records`
 - `auth.allowed-groups`
 - `spring.security.oauth2.client.*` / `application-oauth.yml`
@@ -63,8 +65,8 @@ mvn test
 - `docs/postman/springboot-oidc-auth-state-engine.postman_collection.json`
 
 ### Roadmap / Known limitations
-- Session cache, OAuth2 client persistence, and audit trail are in-memory only and reset on restart.
-- This setup is single-instance only; multi-node production needs shared session/client storage.
+- Session cache, OAuth2 client persistence, audit trail, and step-up rate-limit counters are in-memory only and reset on restart.
+- This setup is single-instance only; multi-node production needs shared session/client storage and shared rate-limit state.
 - Graphviz `.dot` and generated SVG assets are checked in together and need manual regeneration when the diagrams change.
 - Auth0/OIDC runtime settings still depend on local environment variables in `application-oauth.yml`.
 
